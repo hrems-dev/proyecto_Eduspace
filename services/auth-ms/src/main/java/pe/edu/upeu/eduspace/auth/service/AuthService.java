@@ -22,8 +22,12 @@ import java.time.LocalDateTime;
 public class AuthService {
 
     static final String MENSAJE_CREDENCIALES = "Usuario o clave incorrectos.";
-    /** Hash de relleno para que "usuario inexistente" tarde lo mismo que "clave errónea". */
-    private static final String HASH_RELLENO = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("relleno-no-valido");
+    /**
+     * Hash de relleno para que "usuario inexistente" tarde lo mismo que "clave
+     * errónea".
+     */
+    private static final String HASH_RELLENO = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
+            .encode("relleno-no-valido");
 
     private final UsuarioRepository usuarios;
     private final PasswordEncoder encoder;
@@ -33,7 +37,7 @@ public class AuthService {
     private final KeycloakAdminClient keycloak;
 
     /** Los intentos fallidos se persisten aunque se lance la excepción. */
-    @Transactional(noRollbackFor = {CredencialesInvalidasException.class, UsuarioBloqueadoException.class})
+    @Transactional(noRollbackFor = { CredencialesInvalidasException.class, UsuarioBloqueadoException.class })
     public TokenResponse login(String identificador, String clave) {
         Usuario u = usuarios.findByUsernameOrEmail(identificador.trim()).orElse(null);
         if (u == null) {
@@ -42,7 +46,8 @@ public class AuthService {
         }
         if (u.estaBloqueado()) {
             long min = Math.max(1, Duration.between(LocalDateTime.now(), u.getBloqueadoHasta()).toMinutes() + 1);
-            throw new UsuarioBloqueadoException("Usuario bloqueado por intentos fallidos. Intente de nuevo en " + min + " minuto(s).");
+            throw new UsuarioBloqueadoException(
+                    "Usuario bloqueado por intentos fallidos. Intente de nuevo en " + min + " minuto(s).");
         }
         if (!encoder.matches(clave, u.getPasswordHash()) || !Boolean.TRUE.equals(u.getActivo())) {
             registrarFallo(u);
@@ -55,12 +60,16 @@ public class AuthService {
         return emitir(u);
     }
 
-    /** Sin rollback ante credenciales inválidas: la revocación de sesiones por reutilización debe persistir. */
+    /**
+     * Sin rollback ante credenciales inválidas: la revocación de sesiones por
+     * reutilización debe persistir.
+     */
     @Transactional(noRollbackFor = CredencialesInvalidasException.class)
     public TokenResponse refrescar(String refreshToken) {
-        Long usuarioId = refresh.consumir(refreshToken).orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida o vencida."));
+        Long usuarioId = refresh.consumir(refreshToken)
+                .orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida o vencida."));
         Usuario u = usuarios.findById(usuarioId).filter(x -> Boolean.TRUE.equals(x.getActivo()) && !x.estaBloqueado())
-            .orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida o vencida."));
+                .orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida o vencida."));
         return emitir(u);
     }
 
@@ -71,9 +80,12 @@ public class AuthService {
 
     @Transactional
     public void cambiarClave(Long usuarioId, String actual, String nueva) {
-        Usuario u = usuarios.findById(usuarioId).orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida."));
-        // Con Keycloak la clave vigente es la de Keycloak (el hash local puede estar desfasado): se comprueba allí.
-        boolean actualCorrecta = keycloak.habilitado() ? keycloak.verificarClave(u.getUsername(), actual) : encoder.matches(actual, u.getPasswordHash());
+        Usuario u = usuarios.findById(usuarioId)
+                .orElseThrow(() -> new CredencialesInvalidasException("Sesión inválida."));
+        // Con Keycloak la clave vigente es la de Keycloak (el hash local puede estar
+        // desfasado): se comprueba allí.
+        boolean actualCorrecta = keycloak.habilitado() ? keycloak.verificarClave(u.getUsername(), actual)
+                : encoder.matches(actual, u.getPasswordHash());
         if (!actualCorrecta) {
             throw new BusinessRuleException("La clave actual es incorrecta.");
         }
@@ -85,11 +97,14 @@ public class AuthService {
         u.setDebeCambiarClave(false);
         u.setActualizadoEn(LocalDateTime.now());
         usuarios.save(u);
-        refresh.revocarTodos(usuarioId);        // cierra las demás sesiones
-        keycloak.restablecerClave(u, nueva);    // clave definitiva (no temporal) en Keycloak y cierre de sus sesiones
+        refresh.revocarTodos(usuarioId); // cierra las demás sesiones
+        keycloak.restablecerClave(u, nueva); // clave definitiva (no temporal) en Keycloak y cierre de sus sesiones
     }
 
-    /** Indica si la persona debe cambiar su clave antes de usar el sistema (clave temporal o inicial). */
+    /**
+     * Indica si la persona debe cambiar su clave antes de usar el sistema (clave
+     * temporal o inicial).
+     */
     @Transactional(readOnly = true)
     public boolean debeCambiarClave(Long usuarioId) {
         return usuarios.findById(usuarioId).map(u -> Boolean.TRUE.equals(u.getDebeCambiarClave())).orElse(false);
@@ -99,7 +114,8 @@ public class AuthService {
         if (clave == null || clave.length() < props.getClaveMinima()) {
             throw new BusinessRuleException("La clave debe tener al menos " + props.getClaveMinima() + " caracteres.");
         }
-        if (clave.length() > 72) throw new BusinessRuleException("La clave no puede superar 72 caracteres.");
+        if (clave.length() > 72)
+            throw new BusinessRuleException("La clave no puede superar 72 caracteres.");
         if (clave.chars().noneMatch(Character::isLetter) || clave.chars().noneMatch(Character::isDigit)) {
             throw new BusinessRuleException("La clave debe combinar letras y números.");
         }
@@ -111,13 +127,14 @@ public class AuthService {
         if (n >= props.getMaxIntentosFallidos()) {
             u.setBloqueadoHasta(LocalDateTime.now().plusMinutes(props.getBloqueoMinutos()));
             u.setIntentosFallidos((short) 0);
-            log.warn("Usuario {} bloqueado {} min tras {} intentos fallidos", u.getUsername(), props.getBloqueoMinutos(), n);
+            log.warn("Usuario {} bloqueado {} min tras {} intentos fallidos", u.getUsername(),
+                    props.getBloqueoMinutos(), n);
         }
         usuarios.save(u);
     }
 
     private TokenResponse emitir(Usuario u) {
         return new TokenResponse(jwt.emitir(u), refresh.crear(u.getId()), "Bearer", jwt.vigencia().toSeconds(),
-            Boolean.TRUE.equals(u.getDebeCambiarClave()));
+                Boolean.TRUE.equals(u.getDebeCambiarClave()));
     }
 }

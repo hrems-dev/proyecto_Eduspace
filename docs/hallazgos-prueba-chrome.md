@@ -111,3 +111,34 @@ Entran sin pedir cambio de clave: `lucia.mendoza` / DNI y `carmen.rios` / DNI.
 - "Horario por sección" (1° de Secundaria A, 2027) muestra la grilla completa, "Publicado: versión 2 · 19/11/2026 23:23".
 - **H-12:** los botones "Todas de Inicial/Primaria/Secundaria" y "Solo X" reemplazan la selección. Con "Todas" de un nivel se pierden las marcas de los otros. Es confuso para el administrador.
 - Clic en la ruta inventada `/planificacion/horario-seccion` redirige a la portada pública. La ruta real es `/planificacion/horarios`.
+
+## Ronda 7: flujo de apoderada (pago) y revisión de matrículas
+
+### Pago de la apoderada (Carmen, `carmen.rios`)
+- Pagos → Demo Prueba → "Pagar lo que falta (S/ 200.00)". Pasarela de demostración (sin cargo real), tarjeta de prueba `4242…`, vencimiento `12/30`.
+- Resultado: "Pago aprobado" TC-3495321671, S/ 200.00, VISA ****4242. Matrícula pasa a "Pagada" y "Estamos generando la matrícula".
+- **H-13: el pago apunta a la matrícula de 2026.** La matrícula pagada es MAT-2026-000001 (año CERRADO). La familia paga una matrícula de un año cerrado. Revisar si la pantalla de pagos debería ofrecer solo el año activo.
+- **H-14: el mensaje de tiempo.** En el formulario de pago aparece un contador "Vence 00:57" y el campo de vencimiento exige formato MM/AA; el error "El vencimiento va como MM/AA" aparece tras un intento con formato distinto. Verificar la validación.
+
+### Revisión de matrículas (admin)
+- En "Matrículas por aprobar" aparecen 4: MAT-2026-000001 (año cerrado) y MAT-2027-000018/19/20 (en línea, pagadas).
+- Se abrió la revisión de MAT-2027-000020 (Renata Ibarra). **No se aprobó**: aprobar genera pensiones y envía correos con usuario y clave a los apoderados. Hace falta tu confirmación.
+- Cuentas: la ficha muestra botones "Crear cuenta del alumno" y "Crear cuenta del apoderado" (sin cuenta todavía).
+
+### Pendiente
+- Flujo docente (crear tarea, poner nota) y alumno (entregar tarea): bloqueado por H-3 (`docente` pide cambio de clave en el primer ingreso).
+- Aprobación de matrículas 2027: pendiente de confirmación.
+
+## Ronda 8: revisión de notificaciones
+
+- Bandeja admin: vacía (correcto, el admin no recibe avisos de otros).
+- Plantillas: 21, activas (Asistencia, Boletín, Examen calificado/publicado, Horario publicado, Pago confirmado…). Revisar la plantilla de "Horario publicado" por ser la que más se envía.
+- Avisos enviados: 35 en total. Revisadas las primeras filas: "Pago confirmado" (Usuario 111, correo y en la app) OK.
+
+### H-15: avisos de horario con destinatario equivocado
+- Los 13 avisos "Horario publicado" (3 años A, 4 años A, 5 años A, 4° de Primaria A, versiones 1 a 4) van todos a **Usuario 4** (docente Jorge Paredes).
+- Paredes solo dicta en 4° de Primaria A. El tutor de 5 años A es Aguirre Mamani (docente 29, usuarioId 229). El aviso de 5 años A y de 3/4 años A no le corresponde.
+- Revisar qué destinatario usa el evento de publicación de horario (probablemente un usuario fijo en vez del tutor de la sección o los docentes de la sección).
+
+### H-16: contador de docentes en envío
+- En "Enviar un aviso": "Docentes elegidos: 41. Se enviará a 31 usuario(s)" y "10 persona(s) no tienen una cuenta vinculada". Antes (ronda 1) decía 16 docentes. Cambió por nuevos docentes; el texto está bien, solo confirmar que el conteo es el esperado.

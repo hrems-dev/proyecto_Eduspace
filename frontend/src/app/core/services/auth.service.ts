@@ -25,6 +25,20 @@ export function rolesDelSistema(roles: readonly string[] | null | undefined): st
   return (roles ?? []).filter(r => conocidos.includes(r));
 }
 
+/**
+ * ¿Lo emitió Keycloak? Keycloak firma con `iss` .../realms/<realm>; auth-ms usa su propia URL de emisor (sin «/realms/»).
+ * Devuelve null si el token no se puede leer o no trae `iss`.
+ */
+export function emitidoPorKeycloak(token: string): boolean | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(base64)) as { iss?: unknown };
+    return typeof claims.iss === 'string' ? claims.iss.includes('/realms/') : null;
+  } catch {
+    return null;
+  }
+}
+
 const TOKEN_KEY = 'eduspace_token';
 const REFRESH_KEY = 'eduspace_refresh';
 const CAMBIAR_CLAVE_KEY = 'eduspace_cambiar_clave';
@@ -273,6 +287,13 @@ export class AuthService {
     const token = sessionStorage.getItem(TOKEN_KEY);
     const refresh = sessionStorage.getItem(REFRESH_KEY);
     if (!token || !refresh) {
+      return;
+    }
+    // Una sesión guardada con otro modo de login (p. ej. Keycloak antes, login propio ahora) no sirve: su refresh no lo acepta
+    // el emisor actual y el usuario vería «no reconoce tu sesión». Se descarta y se inicia sesión de nuevo.
+    const deKeycloak = emitidoPorKeycloak(token);
+    if (deKeycloak !== null && deKeycloak !== this.esKeycloak) {
+      this.limpiarSesion();
       return;
     }
     // Un access token vencido no se descarta: si queda el refresh token, el interceptor lo renueva en la primera llamada.
