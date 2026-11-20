@@ -7,6 +7,28 @@ import { DatosCobroMp, ResultadoMp } from '../../shared/components/mercadopago-c
 
 const API = '/api/v1/pagos';
 
+/** Una fila del historial de pagos con comprobante. */
+export interface ComprobanteFila {
+  pagoId: number;
+  numero: string | null;
+  tipo: string;
+  total: number;
+  fecha: string;
+  medio: string;
+  referencia: string | null;
+  concepto: string;
+}
+
+/** Descarga un PDF (Blob) en el navegador con ese nombre. */
+export function guardarPdf(blob: Blob, nombre: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 /** Cobros, cuentas por alumno, caja y comprobantes (la configuración de tarifas está en PagoConfigService). */
 @Injectable({ providedIn: 'root' })
 export class CobroService {
@@ -34,6 +56,16 @@ export class CobroService {
   /** Cobra la orden de matrícula en nuestra pantalla (Yape o tarjeta) con el token de MercadoPago.js. */
   pagarOrdenMercadoPagoDirecto(codigoOrden: string, datos: DatosCobroMp): Observable<ResultadoMp> {
     return this.http.post<ResultadoMp>(`${API}/pasarela/ordenes/${codigoOrden}/mercadopago/directo`, datos);
+  }
+
+  /** Pagos confirmados del alumno con su comprobante, del más reciente al más antiguo. */
+  comprobantesDe(alumnoId: number): Observable<ComprobanteFila[]> {
+    return this.http.get<ComprobanteFila[]>(`${API}/alumnos/${alumnoId}/comprobantes`);
+  }
+
+  /** El comprobante (voucher) en PDF de un pago confirmado. */
+  comprobantePdf(pagoId: number): Observable<Blob> {
+    return this.http.get(`${API}/${pagoId}/comprobante/pdf`, { responseType: 'blob' });
   }
 
   /** Pensiones cobradas en nuestra pantalla (Yape o tarjeta): las cuotas y el token de MercadoPago.js. */

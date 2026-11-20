@@ -151,7 +151,7 @@ const INTENTOS_MAX = 12;
             @if (pasarelaReal()) {
               @if (publicKey()) {
                 <div style="margin-top: 16px">
-                  <app-mercadopago-checkout [monto]="o.monto" [publicKey]="publicKey()" [cobrar]="cobrarMp" [conOtrosMedios]="true"
+                  <app-mercadopago-checkout [monto]="o.monto" [publicKey]="publicKey()" [cobrar]="cobrarMp" [conOtrosMedios]="true" [descargarComprobante]="descargarMp"
                     (terminado)="pagoMpTerminado()" (otrosMedios)="irAMercadoPago(o.codigo)" />
                 </div>
               } @else {
@@ -364,10 +364,12 @@ export class MatriculaPagoComponent {
 
   protected readonly cobrarMp = (d: DatosCobroMp): Observable<ResultadoMp> => this.api.pagarOrdenMercadoPagoDirecto(this.orden()!.codigo, d);
 
-  /** Pago aprobado: se cierra el diálogo y se recarga la matrícula (se genera en unos segundos). */
+  protected readonly descargarMp = (r: ResultadoMp): Observable<Blob> => this.api.comprobantePdf(r.pagoId!);
+
+  /** Pago aprobado: el diálogo queda abierto para descargar el comprobante; la matrícula se recarga (se genera en unos segundos). */
   protected pagoMpTerminado(): void {
     this.avisos.success('Pago recibido con Mercado Pago. Tu matrícula se está generando.');
-    setTimeout(() => { this.abierto.set(false); this.cargar(this.alumnoId()); }, 1800);
+    setTimeout(() => this.cargar(this.alumnoId()), 2500);
   }
 
   /** Otros medios (PagoEfectivo, banca por internet): se paga en la web de Mercado Pago. */

@@ -1,7 +1,9 @@
-# Arranca EduSpace en Windows Terminal:
+# Arranca EduSpace en Windows Terminal (detalles en ARRANQUE-LOCAL.md):
+#   Docker                   -> 10 Postgres, Kafka, Kafka UI, MinIO, Mailpit, Grafana/Prometheus/Loki
 #   Ventana "Microservicios" -> 10 pestanas (auth + 9 de negocio)
-#   Ventana "Sistema"        -> config, eureka, gateway, frontend
-# Uso: powershell -ExecutionPolicy Bypass -File .\arrancar-wt.ps1
+#   Ventana "Sistema"        -> kafka, config, eureka, gateway, frontend
+# Uso: powershell -ExecutionPolicy Bypass -File .\arrancar-wt.ps1          (todo)
+#      powershell -ExecutionPolicy Bypass -File .\arrancar-wt.ps1 -SoloDocker  (solo contenedores)
 
 $raiz = Split-Path -Parent $MyInvocation.MyCommand.Path
 $tab  = Join-Path $raiz "tools\tab-servicio.ps1"
@@ -51,6 +53,21 @@ if ($contenedores) {
     }
     Start-Sleep -Seconds 10
 }
+
+# Kafka UI (http://localhost:18085): comparte la red de e2e-kafka (asi ve el listener localhost:9092) y un socat publica el puerto.
+if (-not (docker ps -a -q --filter "name=^e2e-kafka-ui$")) {
+    Write-Host "Creando Kafka UI..." -ForegroundColor Cyan
+    docker network create eduspace-net 2>$null | Out-Null
+    docker network connect eduspace-net e2e-kafka 2>$null
+    docker run -d --name e2e-kafka-ui --network container:e2e-kafka -e SERVER_PORT=8085 -e KAFKA_CLUSTERS_0_NAME=eduspace `
+        -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092 -e DYNAMIC_CONFIG_ENABLED=false ghcr.io/kafbat/kafka-ui:v1.5.0 | Out-Null
+    docker run -d --name e2e-kafka-ui-proxy --network eduspace-net -p 18085:8085 alpine/socat:1.8.0.3 `
+        tcp-listen:8085,fork,reuseaddr tcp-connect:e2e-kafka:8085 | Out-Null
+}
+
+# Observabilidad: Prometheus (19090), Loki (13100), Promtail y Grafana (13000, admin/admin)
+Write-Host "Levantando Grafana / Prometheus / Loki..." -ForegroundColor Cyan
+docker compose -f (Join-Path $raiz "obs\compose-dev.yml") up -d 2>&1 | Out-Null
 
 if ($args -contains "-SoloDocker") { exit 0 }
 

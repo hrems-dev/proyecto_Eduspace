@@ -113,8 +113,11 @@ public class PagoOnlineService {
             throw e;
         }
         log.info("Cobro {} de Mercado Pago ({}) para el pago de pensiones {}: {} {}", p.id(), datos.metodo(), pago.getId(), p.estado(), p.estadoDetalle());
+        String ref = "Mercado Pago · " + datos.metodo() + " · Op. " + p.id();   // así sale en el comprobante
+        pago.setReferencia(ref.length() > 80 ? ref.substring(0, 80) : ref);
+        pagoRepository.save(pago);
         matriculaPago.procesarPagoMercadoPago(p);
-        return MatriculaPagoService.ResultadoMercadoPago.de(p);
+        return matriculaPago.conComprobante(MatriculaPagoService.ResultadoMercadoPago.de(p), pago.getId());
     }
 
     /** Respaldo al volver de Mercado Pago: una sola consulta, y solo para el apoderado que hizo ese pago. */

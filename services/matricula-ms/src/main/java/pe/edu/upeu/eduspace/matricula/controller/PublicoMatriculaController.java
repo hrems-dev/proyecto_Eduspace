@@ -65,6 +65,16 @@ public class PublicoMatriculaController {
         return servicio.resumen(referencia, token);
     }
 
+    @GetMapping(value = "/{referencia}/comprobante", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Comprobante (voucher) en PDF del pago de la matrícula con Mercado Pago")
+    public ResponseEntity<byte[]> comprobante(@PathVariable String referencia, @RequestHeader(TOKEN) String token) {
+        byte[] pdf = servicio.comprobantePago(referencia, token);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("Comprobante-pago-" + referencia + ".pdf").build().toString())
+            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .contentType(MediaType.APPLICATION_PDF).body(pdf);
+    }
+
     @GetMapping(value = "/{referencia}/constancia", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> constancia(@PathVariable String referencia, @RequestHeader(TOKEN) String token) {
         byte[] pdf = servicio.constancia(referencia, token);

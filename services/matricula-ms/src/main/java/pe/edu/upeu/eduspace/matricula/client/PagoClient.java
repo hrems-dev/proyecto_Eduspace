@@ -40,7 +40,11 @@ public interface PagoClient {
     record DatosCobro(String token, String metodo, String emisor, Integer cuotas, String email, String tipoDocumento, String numeroDocumento) {}
     record CobroMatriculaPublica(Long alumnoId, DatosCobro cobro) {}
     /** estado: APROBADO, PENDIENTE o RECHAZADO; mensaje: el motivo en palabras para la familia. */
-    record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia) {}
+    record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia, Long pagoId, String comprobante) {}
+
+    /** El comprobante (voucher) en PDF de la matrícula en línea pagada con Mercado Pago. */
+    @GetMapping("/internal/pagos/matricula-en-linea/{alumnoId}/comprobante")
+    byte[] comprobanteMatricula(@PathVariable("alumnoId") Long alumnoId);
 
     record PasarelaInfo(boolean mercadopago, String modo, String publicKey) {}
     record ProcesoMatricula(Long alumnoId, String rutaVuelta) {}

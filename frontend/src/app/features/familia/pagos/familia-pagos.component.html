@@ -67,6 +67,33 @@
   } @else if (cargando()) {
     <div class="muted">Cargando…</div>
   }
+
+  @if (comprobantes().length) {
+    <div class="card" style="margin-top: 16px">
+      <div class="card-body" style="padding-bottom: 0"><h2 style="margin: 0">Mis pagos y comprobantes</h2></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th>Medio</th><th>Comprobante</th><th>Total</th><th></th></tr></thead>
+          <tbody>
+            @for (f of comprobantes(); track f.pagoId) {
+              <tr>
+                <td>{{ f.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ f.concepto }}@if (f.referencia) { <div class="muted" style="font-size: .8rem">{{ f.referencia }}</div> }</td>
+                <td>{{ medioLegible(f.medio) }}</td>
+                <td>{{ f.numero ?? 'Se genera al descargar' }}</td>
+                <td><strong>S/ {{ f.total | number: '1.2-2' }}</strong></td>
+                <td style="text-align: right">
+                  <button type="button" class="btn btn-sm" [disabled]="bajando() === f.pagoId" (click)="descargarComprobante(f)">
+                    {{ bajando() === f.pagoId ? 'Generando…' : '📄 PDF' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
 </div>
 
 @if (confirmando() && recibo(); as r) {
@@ -82,7 +109,7 @@
   <app-modal titulo="Confirmar pago" [ancho]="480" (cerrar)="cerrar()">
     <p style="margin-top: 0">Vas a pagar <strong>{{ elegidas().size }}</strong> cuota(s) de {{ ctx.seleccionado()?.nombreCompleto }} por un total de <strong>S/ {{ totalElegido() | number: '1.2-2' }}</strong>.</p>
     @if (pasarelaReal() && publicKey()) {
-      <app-mercadopago-checkout [monto]="totalElegido()" [publicKey]="publicKey()" [cobrar]="cobrarMp" [conOtrosMedios]="true"
+      <app-mercadopago-checkout [monto]="totalElegido()" [publicKey]="publicKey()" [cobrar]="cobrarMp" [conOtrosMedios]="true" [descargarComprobante]="descargarMp"
         (terminado)="pagoMpTerminado()" (otrosMedios)="pagar()" />
     } @else if (pasarelaReal()) {
       <div class="aviso aviso-ok">Pagarás en <strong>Mercado Pago</strong>. El colegio no recibe los datos de tu tarjeta; al aprobarse el pago, la cuota queda pagada.</div>

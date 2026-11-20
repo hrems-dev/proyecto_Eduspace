@@ -47,6 +47,7 @@ public class PagoController {
     private final MatriculaLocalRepository matriculaLocalRepository;
     private final pe.edu.upeu.eduspace.pago.repository.DescuentoAlumnoRepository descuentoAlumnoRepository;
     private final pe.edu.upeu.eduspace.pago.client.AlumnosGateway alumnosGateway;
+    private final pe.edu.upeu.eduspace.pago.repository.PagoRepository pagoRepository;
 
     @PostMapping
     @Operation(summary = "Registrar cobro en ventanilla o presencial (CAJERO, ADMIN)")
@@ -130,6 +131,58 @@ public class PagoController {
     @Operation(summary = "Obtener detalle de pago por ID")
     public ResponseEntity<PagoResponse> obtenerPorId(@PathVariable Long id) {
         return ResponseEntity.ok(pagoService.obtenerPorId(id));
+    }
+
+    /** Una fila del historial: el pago confirmado y su comprobante (si aún no se emitió, se emite al descargarlo). */
+    public record ComprobanteFila(Long pagoId, String numero, String tipo, BigDecimal total, LocalDateTime fecha, String medio,
+                                  String referencia, String concepto) {}
+
+    @GetMapping("/alumnos/{alumnoId}/comprobantes")
+    @Operation(summary = "Pagos confirmados del alumno con su comprobante, del más reciente al más antiguo (personal; el APODERADO solo de sus hijos)")
+    @Transactional(readOnly = true)
+    public List<ComprobanteFila> comprobantesDelAlumno(@PathVariable Long alumnoId, @AuthenticationPrincipal Jwt jwt,
+                                                       org.springframework.security.core.Authentication auth) {
+        exigirAccesoAlAlumno(alumnoId, jwt, auth);
+        return pagoRepository.findByAlumnoIdOrderByPagadoEnDesc(alumnoId).stream()
+            .filter(p -> "CONFIRMADO".equals(p.getEstado()))
+            .map(p -> {
+                var c = comprobanteRepository.findByPagoId(p.getId()).orElse(null);
+                String concepto = p.getDetalles().stream().map(d -> d.getCuota().getDescripcion())
+                    .filter(java.util.Objects::nonNull).distinct().collect(java.util.stream.Collectors.joining(", "));
+                String medio = p.getReferencia() != null && p.getReferencia().startsWith("Mercado Pago") ? "MERCADOPAGO" : p.getMedio();
+                return new ComprobanteFila(p.getId(), c == null ? null : String.format("%s-%08d", c.getSerie(), c.getNumero()),
+                    c == null ? (p.getTipoComprobante() == null ? "RECIBO" : p.getTipoComprobante()) : c.getTipo(),
+                    p.getMontoTotal(), p.getPagadoEn(), medio, p.getReferencia(), concepto.isBlank() ? "Pago" : concepto);
+            })
+            .toList();
+    }
+
+    /** El personal (caja, secretaría, admin) ve todo; el apoderado, solo lo de sus hijos. */
+    private void exigirAccesoAlAlumno(Long alumnoId, Jwt jwt, org.springframework.security.core.Authentication auth) {
+        boolean personal = auth.getAuthorities().stream()
+            .anyMatch(a -> java.util.Set.of("ROLE_ADMIN", "ROLE_SECRETARIA", "ROLE_CAJERO").contains(a.getAuthority()));
+        if (personal) return;
+        Long usuarioId = pe.edu.upeu.eduspace.pago.security.UsuarioActual.id(jwt);
+        if (alumnosGateway.hijos(usuarioId).stream().noneMatch(h -> h.getAlumnoId().equals(alumnoId))) {
+            throw new org.springframework.security.access.AccessDeniedException("Ese alumno no es tu hijo.");
+        }
+    }
+
+    @GetMapping(value = "/{id}/comprobante/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Descargar el comprobante (voucher) en PDF de un pago confirmado (personal; el APODERADO solo los de sus hijos)")
+    @Transactional
+    public ResponseEntity<byte[]> descargarComprobante(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt,
+                                                       org.springframework.security.core.Authentication auth) {
+        pe.edu.upeu.eduspace.pago.entity.Pago pago = pagoRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Pago no encontrado: " + id));
+        exigirAccesoAlAlumno(pago.getAlumnoId(), jwt, auth);
+        Comprobante c = comprobanteService.obtenerOEmitir(pago);
+        String nombre = String.format("Comprobante-%s-%08d.pdf", c.getSerie(), c.getNumero());
+        return ResponseEntity.ok()
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombre + "\"")
+            .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .body(comprobanteService.pdf(c));
     }
 
     @GetMapping("/{id}/comprobante")

@@ -80,6 +80,12 @@ public class InternalMatriculaPagoController {
         return matriculaPago.pagarDirectoMatriculaPublica(req.alumnoId(), req.cobro());
     }
 
+    /** El comprobante (voucher) en PDF de la matrícula en línea pagada con Mercado Pago. */
+    @GetMapping(value = "/pagos/matricula-en-linea/{alumnoId}/comprobante", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    public byte[] comprobanteMatricula(@PathVariable Long alumnoId) {
+        return matriculaPago.comprobanteMatriculaPublica(alumnoId);
+    }
+
     @PostMapping("/pagos/matricula-en-linea/mercadopago")
     public PreferenciaMatricula iniciarMercadoPago(@Valid @RequestBody ProcesoMatricula req) {
         String codigo = matriculaPago.crearOrden(req.alumnoId(), null, true).codigo();

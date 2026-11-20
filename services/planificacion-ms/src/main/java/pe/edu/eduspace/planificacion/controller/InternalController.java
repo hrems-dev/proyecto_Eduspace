@@ -26,6 +26,17 @@ public class InternalController {
     private final CursoService cursoService;
     private final FeriadoService feriadoService;
     private final HorarioService horarioService;
+    private final pe.edu.eduspace.planificacion.repository.ColegioRepository colegioRepository;
+    private final pe.edu.eduspace.planificacion.mapper.PlanificacionMapper planificacionMapper;
+
+    /** Datos del colegio para documentos de otros servicios (cabecera del comprobante de pago). */
+    @GetMapping("/colegio")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public ColegioResponse colegio() {
+        return planificacionMapper.toResponse(colegioRepository.findById(pe.edu.eduspace.planificacion.entity.Colegio.ID)
+            .orElseThrow(() -> pe.edu.eduspace.planificacion.exception.ResourceNotFoundException.of("Colegio",
+                (long) pe.edu.eduspace.planificacion.entity.Colegio.ID)));
+    }
 
     @GetMapping("/docentes/usuario/{usuarioId}")
     public InternalDocenteResponse docentePorUsuario(@PathVariable Long usuarioId) {

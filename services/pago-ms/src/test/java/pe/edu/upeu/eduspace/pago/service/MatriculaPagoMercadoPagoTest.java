@@ -25,7 +25,7 @@ class MatriculaPagoMercadoPagoTest {
     private MatriculaPagoService servicio() {
         return spy(new MatriculaPagoService(mock(CuotaRepository.class), mock(MatriculaLocalRepository.class), mock(OrdenPagoRepository.class),
             mock(SolicitudDescuentoRepository.class), mock(CreditoService.class), mock(AlumnosGateway.class), new PagoProperties(),
-            mock(PlanificacionClient.class), mock(MercadoPagoClient.class), mock(PagoService.class)));
+            mock(PlanificacionClient.class), mock(MercadoPagoClient.class), mock(PagoService.class), mock(pe.edu.upeu.eduspace.pago.repository.PagoRepository.class), mock(ComprobanteService.class)));
     }
 
     private static MercadoPagoClient.Pago pago(String estado, String tipo) {
@@ -82,7 +82,7 @@ class MatriculaPagoMercadoPagoTest {
         PagoService pagos = mock(PagoService.class);
         MatriculaPagoService s = spy(new MatriculaPagoService(mock(CuotaRepository.class), mock(MatriculaLocalRepository.class), mock(OrdenPagoRepository.class),
             mock(SolicitudDescuentoRepository.class), mock(CreditoService.class), mock(AlumnosGateway.class), new PagoProperties(),
-            mock(PlanificacionClient.class), mock(MercadoPagoClient.class), pagos));
+            mock(PlanificacionClient.class), mock(MercadoPagoClient.class), pagos, mock(pe.edu.upeu.eduspace.pago.repository.PagoRepository.class), mock(ComprobanteService.class)));
         MercadoPagoClient.Pago pension = new MercadoPagoClient.Pago(55L, "approved", "accredited", "PG-42", new BigDecimal("80.00"), "PEN",
             "credit_card", "visa", "Ana");
         s.procesarPagoMercadoPago(pension);

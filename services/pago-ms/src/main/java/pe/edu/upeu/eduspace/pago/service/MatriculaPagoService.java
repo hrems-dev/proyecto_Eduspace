@@ -53,6 +53,8 @@ public class MatriculaPagoService {
     private final PlanificacionClient planificacion;
     private final MercadoPagoClient mercadoPago;
     private final PagoService pagos;
+    private final pe.edu.upeu.eduspace.pago.repository.PagoRepository pagoRepository;
+    private final ComprobanteService comprobantes;
 
     // ------------------------------------------------------------------ lo que se muestra
 
@@ -269,10 +271,30 @@ public class MatriculaPagoService {
             var r = credito.cobrarMatricula(o.getAlumnoId(), o.getMatriculaId(), null);
             o.setPagoId(r.pagoId());
             ordenes.save(o);
+            emitirComprobanteDeOrden(r.pagoId(), a, referencia);
         } else {
             log.info("Orden {} aprobada; la matrícula de {} no se cobra del crédito ahora (queda a favor del alumno).", o.getCodigo(), o.getAlumnoId());
         }
         return o;
+    }
+
+    /**
+     * El cobro de la matrícula sale del crédito, pero quien pagó fue la familia por la pasarela: el pago guarda quién y con qué operación,
+     * y se emite su comprobante (el voucher que la familia descarga). Si falla la emisión no se deshace el cobro: el comprobante se emite
+     * al descargarlo (ComprobanteService.obtenerOEmitir).
+     */
+    private void emitirComprobanteDeOrden(Long pagoId, Aviso a, String referencia) {
+        try {
+            pe.edu.upeu.eduspace.pago.entity.Pago pago = pagoRepository.findById(pagoId).orElseThrow();
+            String pagador = a.pagador() != null && !a.pagador().isBlank() ? a.pagador() : "Apoderado";
+            pago.setPagadorNombre(pagador.length() > 200 ? pagador.substring(0, 200) : pagador);
+            String ref = (a.detalle() != null && a.detalle().startsWith("Mercado Pago") ? a.detalle() : "Pasarela") + " · Op. " + a.transaccionId();
+            pago.setReferencia(ref.length() > 80 ? ref.substring(0, 80) : ref);
+            pagoRepository.save(pago);
+            comprobantes.emitirComprobante(pago, "RECIBO");
+        } catch (RuntimeException e) {
+            log.warn("No se emitió ahora el comprobante del pago {} ({}): se emitirá al descargarlo.", pagoId, e.getMessage());
+        }
     }
 
     // ------------------------------------------------------------------ Mercado Pago (pasarela real)
@@ -336,15 +358,29 @@ public class MatriculaPagoService {
     }
 
     /** Resultado de un cobro hecho en nuestra pantalla: APROBADO, PENDIENTE (Mercado Pago lo revisa) o RECHAZADO, con el motivo en palabras. */
-    public record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia) {
+    /** {@code pagoId} y {@code comprobante}: el pago confirmado y su comprobante (voucher) cuando el cobro se aprobó. */
+    public record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia, Long pagoId, String comprobante) {
         public static ResultadoMercadoPago de(MercadoPagoClient.Pago p) {
             String e = switch (p.estado() == null ? "" : p.estado()) {
                 case "approved" -> "APROBADO";
                 case "in_process", "pending", "authorized" -> "PENDIENTE";
                 default -> "RECHAZADO";
             };
-            return new ResultadoMercadoPago(e, MercadoPagoClient.explicar(p.estado(), p.estadoDetalle()), String.valueOf(p.id()), p.referenciaExterna());
+            return new ResultadoMercadoPago(e, MercadoPagoClient.explicar(p.estado(), p.estadoDetalle()), String.valueOf(p.id()), p.referenciaExterna(),
+                null, null);
         }
+
+        public ResultadoMercadoPago conComprobante(Long pagoId, String comprobante) {
+            return new ResultadoMercadoPago(estado, mensaje, operacion, referencia, pagoId, comprobante);
+        }
+    }
+
+    /** El resultado con el pago y su comprobante, si el cobro quedó aprobado. */
+    ResultadoMercadoPago conComprobante(ResultadoMercadoPago r, Long pagoId) {
+        if (!"APROBADO".equals(r.estado()) || pagoId == null) return r;
+        String numero = comprobantes.buscarPorPago(pagoId)
+            .map(c -> String.format("%s-%08d", c.getSerie(), c.getNumero())).orElse(null);
+        return r.conComprobante(pagoId, numero);
     }
 
     /**
@@ -376,7 +412,18 @@ public class MatriculaPagoService {
             "Matrícula EduSpace" + (alumno == null ? "" : " - " + alumno), datos, aviso);
         log.info("Cobro {} de Mercado Pago ({}) para la orden {}: {} {}", p.id(), datos.metodo(), orden.getCodigo(), p.estado(), p.estadoDetalle());
         procesarPagoMercadoPago(p);
-        return ResultadoMercadoPago.de(p);
+        Long pagoId = ordenes.findByCodigo(orden.getCodigo()).map(OrdenPago::getPagoId).orElse(null);
+        return conComprobante(ResultadoMercadoPago.de(p), pagoId);
+    }
+
+    /** Matrícula en línea: el PDF del comprobante del último pago aprobado con Mercado Pago del alumno. */
+    @Transactional
+    public byte[] comprobanteMatriculaPublica(Long alumnoId) {
+        OrdenPago o = ordenes.findFirstByAlumnoIdAndPasarelaOrderByIdDesc(alumnoId, MERCADOPAGO)
+            .filter(x -> OrdenPago.APROBADA.equals(x.getEstado()) && x.getPagoId() != null)
+            .orElseThrow(() -> new ResourceNotFoundException("Todavía no hay un pago aprobado de esta matrícula."));
+        var pago = pagoRepository.findById(o.getPagoId()).orElseThrow();
+        return comprobantes.pdf(comprobantes.obtenerOEmitir(pago));
     }
 
     /** Matrícula en línea del sitio público: cobra la orden de lo que falta del alumno (la crea o reutiliza). */

@@ -37,6 +37,11 @@ export class MatriculaPublicaService {
       { headers: new HttpHeaders({ [TOKEN]: token }) });
   }
 
+  /** El comprobante (voucher) en PDF del pago de la matrícula con Mercado Pago. */
+  comprobante(referencia: string, token: string): Observable<Blob> {
+    return this.http.get(`${API}/${referencia}/comprobante`, { headers: new HttpHeaders({ [TOKEN]: token }), responseType: 'blob' });
+  }
+
   /** Qué pasarela usa la matrícula en línea: Mercado Pago real o la de demostración, y su clave pública. */
   pasarela(): Observable<{ mercadopago: boolean; modo: string; publicKey?: string }> {
     return this.http.get<{ mercadopago: boolean; modo: string; publicKey?: string }>(`${API}/pasarela`);

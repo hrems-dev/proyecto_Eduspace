@@ -313,6 +313,9 @@ const documentoValido = (control: AbstractControl): ValidationErrors | null => {
               @else { <div class="mel-aviso">No dejaste un correo (o no pudimos enviarlo). Guarda el código <b>{{ r.codigo }}</b> y consulta el estado aquí o en secretaría.</div> }
               <div class="mel-acc">
                 <button type="button" class="pub-btn pub-btn-primario" [disabled]="actualizando()" (click)="actualizarEstado()">{{ actualizando() ? 'Consultando…' : 'Consultar estado' }}</button>
+                @if (pasarelaReal()) {
+                  <button type="button" class="pub-btn pub-btn-borde" [disabled]="bajandoComprobante()" (click)="descargarComprobante()">{{ bajandoComprobante() ? 'Generando…' : '📄 Comprobante de pago (PDF)' }}</button>
+                }
                 <button type="button" class="pub-btn pub-btn-borde" (click)="nuevaMatricula()">Hacer otra matrícula</button>
               </div>
             </div>
@@ -357,6 +360,9 @@ const documentoValido = (control: AbstractControl): ValidationErrors | null => {
               <div class="mel-acc">
                 <button type="button" class="pub-btn pub-btn-primario" [disabled]="descargando()" (click)="descargar()">{{ descargando() ? 'Preparando…' : 'Descargar constancia (PDF)' }}</button>
                 <button type="button" class="pub-btn pub-btn-borde" (click)="imprimir()">Imprimir</button>
+                @if (pasarelaReal()) {
+                  <button type="button" class="pub-btn pub-btn-borde" [disabled]="bajandoComprobante()" (click)="descargarComprobante()">{{ bajandoComprobante() ? 'Generando…' : '📄 Comprobante de pago (PDF)' }}</button>
+                }
               </div>
               <p class="muted" style="font-size: .85rem; margin-top: 12px">Pendiente en secretaría: copia del DNI del alumno, partida de nacimiento y ficha SIAGIE.</p>
             </div>
@@ -396,7 +402,7 @@ const documentoValido = (control: AbstractControl): ValidationErrors | null => {
         <app-modal titulo="Pagar la matrícula" [ancho]="480" (cerrar)="cerrarPago()">
           @if (publicKey()) {
             <app-mercadopago-checkout [monto]="inicio()?.montoMatricula ?? 0" [publicKey]="publicKey()" [email]="f.apoderado.value.email || null"
-              [cobrar]="cobrarMp" [conOtrosMedios]="true" (terminado)="pagoMpTerminado()" (otrosMedios)="irAMercadoPago()" />
+              [cobrar]="cobrarMp" [conOtrosMedios]="true" [descargarComprobante]="descargarMp" (terminado)="pagoMpTerminado()" (otrosMedios)="irAMercadoPago()" />
             <p class="muted" style="margin: 10px 0 0">Al aprobarse el pago, tu matrícula pasa a revisión y te enviamos el correo.</p>
           } @else {
             <p>Te llevaremos a <b>Mercado Pago</b>, donde pagas con tarjeta, Yape u otros medios.</p>
@@ -787,7 +793,12 @@ export class MatriculaEnLineaComponent implements OnInit {
   }
 
   protected cerrarPago(): void {
-    if (!this.pagando()) this.modalPago.set(false);
+    if (this.pagando()) return;
+    this.modalPago.set(false);
+    if (this.pagadoMp) {
+      this.pagadoMp = false;
+      this.paso.set('listo');
+    }
   }
 
   /** Clave pública de Mercado Pago: con ella se paga dentro de esta página (Yape o tarjeta). */
@@ -799,13 +810,38 @@ export class MatriculaEnLineaComponent implements OnInit {
     return this.api.pagarMercadoPago(i.referencia, i.token, d).pipe(map(r => { this.resumen.set(r.resumen); return r; }));
   };
 
-  /** Pago aprobado (o en revisión): se muestra el resumen y se consulta hasta que la matrícula pase a revisión. */
+  /** Pago aprobado (o en revisión): el diálogo queda abierto para descargar el comprobante; al cerrarlo se muestra el resumen. */
   protected pagoMpTerminado(): void {
-    setTimeout(() => {
-      this.modalPago.set(false);
-      this.paso.set('listo');
-      this.esperarConfirmacion(6);
-    }, 1800);
+    this.pagadoMp = true;
+    this.esperarConfirmacion(6);
+  }
+
+  /** Ya se pagó con Mercado Pago en esta ventana: al cerrar el diálogo se pasa al resumen final. */
+  private pagadoMp = false;
+
+  protected readonly descargarMp = (): Observable<Blob> => {
+    const token = (this.inicio() ?? this.tokenGuardado())!.token;
+    const referencia = this.resumen()?.referencia ?? this.inicio()!.referencia;
+    return this.api.comprobante(referencia, token);
+  };
+
+  protected readonly bajandoComprobante = signal(false);
+
+  /** El comprobante (voucher) del pago con Mercado Pago, desde el resumen final. */
+  protected descargarComprobante(): void {
+    this.bajandoComprobante.set(true);
+    this.descargarMp().subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Comprobante-pago-${this.resumen()?.codigo ?? 'matricula'}.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        this.bajandoComprobante.set(false);
+      },
+      error: () => this.bajandoComprobante.set(false)
+    });
   }
 
   /** La confirmación llega por evento entre servicios: unas pocas consultas, cada 2 s, hasta que el trámite deje de estar INICIADA. */

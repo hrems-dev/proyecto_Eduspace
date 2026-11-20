@@ -78,6 +78,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/pagos/alumnos/*/descuentos").hasAnyRole("CAJERO", "SECRETARIA", "ADMIN")
                 .requestMatchers("/api/v1/pagos/alumnos/*/estado-cuenta").hasAnyRole("CAJERO", "SECRETARIA", "ADMIN", "APODERADO", "ALUMNO")
                 .requestMatchers(HttpMethod.GET, "/api/v1/pagos/*/comprobante").hasAnyRole("CAJERO", "ADMIN", "APODERADO", "ALUMNO", "SECRETARIA")
+                .requestMatchers(HttpMethod.GET, "/api/v1/pagos/*/comprobante/pdf").hasAnyRole("CAJERO", "ADMIN", "APODERADO", "SECRETARIA")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pagos/online/mercadopago/directo").hasRole("APODERADO")
+                .requestMatchers(HttpMethod.POST, "/api/v1/pagos/pasarela/ordenes/*/mercadopago/directo").hasAnyRole("APODERADO", "CAJERO", "SECRETARIA", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/pagos/**").hasAnyRole("CAJERO", "SECRETARIA", "ADMIN", "APODERADO")
 
                 .anyRequest().authenticated()

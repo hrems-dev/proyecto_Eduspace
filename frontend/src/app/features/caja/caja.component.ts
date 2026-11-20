@@ -10,7 +10,7 @@ import { CreditoAlumno, Cuota, DescuentoDelAlumno, EstadoCuenta, EstadoMatricula
 import { DetalleMoroso } from '../../core/models/pago.model';
 import { AlumnoService } from '../../core/services/alumno.service';
 import { AuthService } from '../../core/services/auth.service';
-import { CobroService } from '../../core/services/cobro.service';
+import { CobroService, guardarPdf } from '../../core/services/cobro.service';
 import { NombresAlumnoService } from '../../core/services/nombres-alumno.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PagoConfigService } from '../../core/services/pago-config.service';
@@ -329,6 +329,17 @@ export class CajaComponent implements OnInit {
 
   protected cerrarRecibo(): void {
     this.recibo.set(null);
+  }
+
+  protected readonly bajandoPdf = signal(false);
+
+  /** El comprobante del cobro en PDF (el mismo que descarga la familia). */
+  protected descargarPdf(pagoId: number, numero?: string | null): void {
+    this.bajandoPdf.set(true);
+    this.api.comprobantePdf(pagoId).subscribe({
+      next: blob => { guardarPdf(blob, `Comprobante-${numero ?? pagoId}.pdf`); this.bajandoPdf.set(false); },
+      error: e => { this.bajandoPdf.set(false); this.avisos.error(mensajeError(e, 'No se pudo descargar el comprobante.')); }
+    });
   }
 
   protected imprimir(): void {

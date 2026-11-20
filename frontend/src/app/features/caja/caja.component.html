@@ -7,6 +7,7 @@
       <div class="aviso aviso-ok" role="status" style="margin: 0">Se recibieron <strong>S/ {{ r.pago.montoTotal | number: '1.2-2' }}</strong> en efectivo.</div>
       <span class="espacio"></span>
       <button type="button" class="btn btn-primary" (click)="imprimir()">Imprimir recibo</button>
+      <button type="button" class="btn" [disabled]="bajandoPdf()" (click)="descargarPdf(r.pago.id, r.pago.comprobante?.numeroCompleto)">{{ bajandoPdf() ? 'Generando…' : '📄 Descargar PDF' }}</button>
       <button type="button" class="btn" (click)="cerrarRecibo()">Listo</button>
     </div>
     <article class="hoja-documento hoja-recibo" aria-label="Recibo de pago">

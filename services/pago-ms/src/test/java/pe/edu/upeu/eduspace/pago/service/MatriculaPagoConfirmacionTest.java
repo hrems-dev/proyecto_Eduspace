@@ -30,7 +30,7 @@ class MatriculaPagoConfirmacionTest {
     private final CreditoService credito = mock(CreditoService.class);
     private final MatriculaPagoService servicio = new MatriculaPagoService(mock(CuotaRepository.class), mock(MatriculaLocalRepository.class),
         ordenes, mock(SolicitudDescuentoRepository.class), credito, mock(AlumnosGateway.class), new PagoProperties(),
-        mock(PlanificacionClient.class), mock(MercadoPagoClient.class), mock(PagoService.class));
+        mock(PlanificacionClient.class), mock(MercadoPagoClient.class), mock(PagoService.class), mock(pe.edu.upeu.eduspace.pago.repository.PagoRepository.class), mock(ComprobanteService.class));
 
     private OrdenPago orden() {
         return OrdenPago.builder().codigo("ORD-1").alumnoId(7L).matriculaId(9L).monto(new BigDecimal("150.00"))

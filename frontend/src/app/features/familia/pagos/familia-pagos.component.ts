@@ -2,7 +2,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { EstadoCuenta, EstadoCuota, Pago } from '../../../core/models/cobro.model';
-import { CobroService } from '../../../core/services/cobro.service';
+import { CobroService, ComprobanteFila, guardarPdf } from '../../../core/services/cobro.service';
 import { FamiliaContextoService } from '../../../core/services/familia-contexto.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { mensajeError } from '../../../core/utils/errores';
@@ -103,14 +103,33 @@ export class FamiliaPagosComponent implements OnInit {
     return this.cuotasEnRevision().has(id);
   }
 
+  /** Pagos confirmados del hijo con su comprobante (para volver a descargarlo cuando quiera). */
+  protected readonly comprobantes = signal<ComprobanteFila[]>([]);
+  protected readonly bajando = signal<number | null>(null);
+
+  protected descargarComprobante(f: ComprobanteFila): void {
+    this.bajando.set(f.pagoId);
+    this.api.comprobantePdf(f.pagoId).subscribe({
+      next: blob => { guardarPdf(blob, `Comprobante-${f.numero ?? f.pagoId}.pdf`); this.bajando.set(null); },
+      error: e => { this.bajando.set(null); this.avisos.error(mensajeError(e, 'No se pudo descargar el comprobante.')); }
+    });
+  }
+
+  protected medioLegible(m: string): string {
+    return ({ MERCADOPAGO: 'Mercado Pago', EFECTIVO: 'Efectivo', CREDITO: 'Crédito a favor', TARJETA: 'Tarjeta', YAPE_PLIN: 'Yape / Plin',
+      TRANSFERENCIA: 'Transferencia', ONLINE_SIMULADO: 'En línea' } as Record<string, string>)[m] ?? m;
+  }
+
   private cargar(alumnoId?: number): void {
     this.elegidas.set(new Set());
     this.cuenta.set(null);
+    this.comprobantes.set([]);
     if (!alumnoId) {
       this.cargando.set(false);
       return;
     }
     this.cargando.set(true);
+    this.api.comprobantesDe(alumnoId).subscribe({ next: l => this.comprobantes.set(l), error: () => this.comprobantes.set([]) });
     this.api.estadoCuenta(alumnoId).subscribe({
       next: c => {
         this.cuenta.set(c);
@@ -158,6 +177,13 @@ export class FamiliaPagosComponent implements OnInit {
 
   protected cerrar(): void {
     this.confirmando.set(false);
+    if (this.pagadoMp) {
+      this.pagadoMp = false;
+      this.elegidas.set(new Set());
+      this.cargar(this.ctx.seleccionado()?.alumnoId);
+      this.cargarEnviados();
+      return;
+    }
     if (this.recibo()) {
       this.cargar(this.ctx.seleccionado()?.alumnoId);
       this.cargarEnviados();
@@ -175,16 +201,16 @@ export class FamiliaPagosComponent implements OnInit {
     return this.api.pagarPensionesMercadoPagoDirecto(pago, d);
   };
 
-  /** Pago aprobado: se cierra el diálogo y se recargan la cuenta y los pagos. */
+  protected readonly descargarMp = (r: ResultadoMp): Observable<Blob> => this.api.comprobantePdf(r.pagoId!);
+
+  /** Pago aprobado: el diálogo queda abierto para descargar el comprobante; detrás se recargan la cuenta y los pagos. */
   protected pagoMpTerminado(): void {
-    this.avisos.success('Pago recibido con Mercado Pago. Te llegará el comprobante.');
-    setTimeout(() => {
-      this.confirmando.set(false);
-      this.elegidas.set(new Set());
-      this.cargar(this.ctx.seleccionado()?.alumnoId);
-      this.cargarEnviados();
-    }, 1800);
+    this.avisos.success('Pago recibido con Mercado Pago. Ya puedes descargar tu comprobante.');
+    this.pagadoMp = true;
   }
+
+  /** Si se pagó con Mercado Pago, al cerrar se limpian las cuotas elegidas y se recarga la cuenta. */
+  private pagadoMp = false;
 
   protected pagar(): void {
     const h = this.ctx.seleccionado();

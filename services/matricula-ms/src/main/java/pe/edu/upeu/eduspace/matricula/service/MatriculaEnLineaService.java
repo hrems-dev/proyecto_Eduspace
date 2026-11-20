@@ -288,7 +288,21 @@ public class MatriculaEnLineaService {
     }
 
     /** Resultado del cobro con Mercado Pago en nuestra pantalla y el trámite ya actualizado. */
-    public record PagoMercadoPago(String estado, String mensaje, String operacion, Resumen resumen) {}
+    public record PagoMercadoPago(String estado, String mensaje, String operacion, String comprobante, Resumen resumen) {}
+
+    /** El comprobante (voucher) del pago de la matrícula, solo para quien tiene el token del trámite. */
+    public byte[] comprobantePago(String referencia, String token) {
+        MatriculaPublica mp = autorizar(referencia, token);
+        Matricula m = matriculas.findById(mp.getMatriculaId()).orElseThrow();
+        try {
+            return pago.comprobanteMatricula(m.getAlumnoId());
+        } catch (FeignException.NotFound e) {
+            throw new BusinessRuleException("Todavía no hay un pago aprobado de esta matrícula.");
+        } catch (FeignException e) {
+            log.warn("No se pudo obtener el comprobante de la matrícula {}: {}", m.getCodigo(), e.status());
+            throw new ServicioNoDisponibleException("No pudimos generar el comprobante ahora. Intenta de nuevo en unos minutos.");
+        }
+    }
 
     /**
      * Matrícula en línea pagada en nuestra pantalla (tarjeta o Yape) con el token de MercadoPago.js. Si se aprueba, pago-ms avisa por evento y
@@ -297,7 +311,7 @@ public class MatriculaEnLineaService {
     public PagoMercadoPago pagarConMercadoPago(String referencia, String token, PagoClient.DatosCobro datos) {
         MatriculaPublica mp = autorizar(referencia, token);
         Matricula m = matriculas.findById(mp.getMatriculaId()).orElseThrow();
-        if (!"INICIADA".equals(mp.getEstado())) return new PagoMercadoPago("APROBADO", "La matrícula ya estaba pagada.", null, resumen(mp, m));
+        if (!"INICIADA".equals(mp.getEstado())) return new PagoMercadoPago("APROBADO", "La matrícula ya estaba pagada.", null, null, resumen(mp, m));
         if (!"PRE_MATRICULA".equals(m.getEstado())) {
             throw new BusinessRuleException("La reserva de esta matrícula ya no está vigente (estado " + m.getEstado() + "). Inicia una nueva solicitud.");
         }
@@ -311,7 +325,7 @@ public class MatriculaEnLineaService {
             if (e.status() == 409 || e.status() == 400) throw new BusinessRuleException(mensajeDe(e, "Mercado Pago no pudo procesar el pago. No se hizo ningún cobro."));
             throw new ServicioNoDisponibleException("No pudimos procesar el pago con Mercado Pago. No se hizo ningún cobro; intenta de nuevo en unos minutos.");
         }
-        return new PagoMercadoPago(r.estado(), r.mensaje(), r.operacion(), resumen(mp, matriculas.findById(m.getId()).orElseThrow()));
+        return new PagoMercadoPago(r.estado(), r.mensaje(), r.operacion(), r.comprobante(), resumen(mp, matriculas.findById(m.getId()).orElseThrow()));
     }
 
     /** El "mensaje" del error de otro servicio ({"mensaje": "..."}), o el texto por defecto. */

@@ -21,6 +21,9 @@ export interface ResultadoMp {
   estado: 'APROBADO' | 'PENDIENTE' | 'RECHAZADO';
   mensaje: string;
   operacion: string | null;
+  /** Pago confirmado y número de su comprobante (voucher), cuando se aprobó. */
+  pagoId?: number | null;
+  comprobante?: string | null;
 }
 
 let secuencia = 0;
@@ -52,7 +55,13 @@ let secuencia = 0;
       <strong>{{ r.estado === 'APROBADO' ? '✅ Pago aprobado' : r.estado === 'PENDIENTE' ? '⏳ Pago en revisión' : '❌ Pago no aprobado' }}</strong>
       <div>{{ r.mensaje }}</div>
       @if (r.operacion) { <small>N.° de operación Mercado Pago: {{ r.operacion }}</small> }
+      @if (r.estado === 'APROBADO' && r.comprobante) { <small>Comprobante: <b>{{ r.comprobante }}</b></small> }
     </div>
+    @if (r.estado === 'APROBADO' && descargarComprobante()) {
+      <button type="button" class="mpc-btn-comprobante" [disabled]="descargando()" (click)="descargar(r)">
+        {{ descargando() ? 'Generando comprobante…' : '📄 Descargar comprobante de pago (PDF)' }}
+      </button>
+    }
   }
   @if (error()) { <div class="mpc-aviso error" role="alert">{{ error() }}</div> }
 
@@ -114,6 +123,8 @@ let secuencia = 0;
 .mpc-aviso.error { background: #fef3f2; color: #b42318; }
 .mpc-seguro { margin: 0; font-size: .82rem; color: #667085; }
 .mpc-cargando { margin: 0; color: #667085; }
+.mpc-btn-comprobante { padding: 11px; border: 2px solid #05603a; border-radius: 10px; background: #fff; color: #05603a; font: inherit; font-weight: 700; cursor: pointer; }
+.mpc-btn-comprobante:disabled { opacity: .7; cursor: default; }
 .mpc-link { background: none; border: 0; padding: 0; color: #009ee3; font: inherit; font-size: .85rem; text-decoration: underline; cursor: pointer; text-align: left; }
 `]
 })
@@ -127,6 +138,8 @@ export class MercadoPagoCheckoutComponent implements OnDestroy {
   /** Cobra en el servidor con el token. El componente solo muestra el resultado. */
   readonly cobrar = input.required<(d: DatosCobroMp) => Observable<ResultadoMp>>();
   readonly conOtrosMedios = input(false);
+  /** Descarga el comprobante (voucher) en PDF del pago aprobado. Sin ella no se muestra el botón. */
+  readonly descargarComprobante = input<((r: ResultadoMp) => Observable<Blob>) | null>(null);
   /** Se emite con el pago APROBADO o PENDIENTE (el padre refresca su pantalla). */
   readonly terminado = output<ResultadoMp>();
   readonly otrosMedios = output<void>();
@@ -144,6 +157,26 @@ export class MercadoPagoCheckoutComponent implements OnDestroy {
   protected correo = '';
 
   private brick: { unmount: () => void } | null = null;
+  protected readonly descargando = signal(false);
+
+  protected descargar(r: ResultadoMp): void {
+    const fn = this.descargarComprobante();
+    if (!fn) return;
+    this.descargando.set(true);
+    this.error.set(null);
+    fn(r).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Comprobante-${r.comprobante ?? r.operacion ?? 'pago'}.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        this.descargando.set(false);
+      },
+      error: e => { this.descargando.set(false); this.error.set(mensajeError(e, 'No se pudo descargar el comprobante. Intenta de nuevo.')); }
+    });
+  }
 
   ngOnDestroy(): void {
     this.desmontarTarjeta();

@@ -27,8 +27,20 @@ public interface PlanificacionClient {
 
     record GradoInterno(Long id, Long nivelId, String nivelNombre, Short numero, String nombre, Boolean activo) {}
 
+    /** Datos del colegio para la cabecera del comprobante de pago. */
+    @GetMapping("/internal/colegio")
+    ColegioInterno getColegio();
+
+    record ColegioInterno(String nombre, String nombreCorto, String lema, String codigoModular, String ruc, String direccion,
+                          String distrito, String provincia, String departamento, String telefono, String email, String sitioWeb) {}
+
     @Component
     class PlanificacionClientFallback implements PlanificacionClient {
+        @Override
+        public ColegioInterno getColegio() {
+            return null;
+        }
+
         @Override
         public AnioInterno getAnio(Long anioId) {
             return null;
