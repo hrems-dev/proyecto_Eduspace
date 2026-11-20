@@ -335,6 +335,57 @@ public class MatriculaPagoService {
         return estadoDe(orden.getAlumnoId());
     }
 
+    /** Resultado de un cobro hecho en nuestra pantalla: APROBADO, PENDIENTE (Mercado Pago lo revisa) o RECHAZADO, con el motivo en palabras. */
+    public record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia) {
+        public static ResultadoMercadoPago de(MercadoPagoClient.Pago p) {
+            String e = switch (p.estado() == null ? "" : p.estado()) {
+                case "approved" -> "APROBADO";
+                case "in_process", "pending", "authorized" -> "PENDIENTE";
+                default -> "RECHAZADO";
+            };
+            return new ResultadoMercadoPago(e, MercadoPagoClient.explicar(p.estado(), p.estadoDetalle()), String.valueOf(p.id()), p.referenciaExterna());
+        }
+    }
+
+    /**
+     * Cobra la orden en nuestra propia pantalla (tarjeta o Yape) con el token de MercadoPago.js. El monto es el de la orden; el resultado se
+     * aplica en el acto con la misma regla que el aviso (monto exacto, idempotente por id de pago). Un rechazo no cierra la orden.
+     */
+    @Transactional(noRollbackFor = BusinessRuleException.class)
+    public ResultadoMercadoPago pagarDirecto(String codigo, MercadoPagoClient.DatosCobro datos, Long usuarioId, boolean personal) {
+        OrdenPago orden = ordenes.findByCodigo(codigo).orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada: " + codigo));
+        exigirAcceso(orden.getAlumnoId(), usuarioId, personal);
+        PagoProperties.MercadoPago mp = props.getMercadopago();
+        if (!mp.habilitado()) throw new BusinessRuleException("El pago con Mercado Pago no está activo en este servidor.");
+        if (datos == null || datos.token() == null || datos.token().isBlank() || datos.metodo() == null) {
+            throw new BusinessRuleException("Faltan los datos del pago.");
+        }
+        if (datos.email() == null || !datos.email().contains("@")) throw new BusinessRuleException("Escribe un correo válido para el comprobante de Mercado Pago.");
+        if (!OrdenPago.PENDIENTE.equals(orden.getEstado())) throw new BusinessRuleException("Esta orden ya está " + orden.getEstado().toLowerCase() + ".");
+        if (orden.getExpiraEn().isBefore(LocalDateTime.now())) {
+            orden.setEstado(OrdenPago.EXPIRADA);
+            ordenes.save(orden);
+            throw new BusinessRuleException("La orden venció: genera una nueva para pagar lo que falta.");
+        }
+        orden.setPasarela(MERCADOPAGO);
+        ordenes.save(orden);
+        String alumno = matriculas.findById(orden.getMatriculaId()).map(MatriculaLocal::getAlumnoNombre).orElse(null);
+        String aviso = mp.getPublicBaseUrl() == null || mp.getPublicBaseUrl().isBlank() ? null
+            : mp.getPublicBaseUrl().replaceAll("/+$", "") + "/api/v1/pagos/pasarela/mercadopago/notificacion";
+        MercadoPagoClient.Pago p = mercadoPago.cobrar(orden.getCodigo(), orden.getMonto(),
+            "Matrícula EduSpace" + (alumno == null ? "" : " - " + alumno), datos, aviso);
+        log.info("Cobro {} de Mercado Pago ({}) para la orden {}: {} {}", p.id(), datos.metodo(), orden.getCodigo(), p.estado(), p.estadoDetalle());
+        procesarPagoMercadoPago(p);
+        return ResultadoMercadoPago.de(p);
+    }
+
+    /** Matrícula en línea del sitio público: cobra la orden de lo que falta del alumno (la crea o reutiliza). */
+    @Transactional(noRollbackFor = BusinessRuleException.class)
+    public ResultadoMercadoPago pagarDirectoMatriculaPublica(Long alumnoId, MercadoPagoClient.DatosCobro datos) {
+        String codigo = crearOrden(alumnoId, null, true).codigo();
+        return pagarDirecto(codigo, datos, null, true);
+    }
+
     /** El aviso (webhook) de Mercado Pago: solo trae el id del pago; el estado y el monto se piden al API antes de confiar en ellos. */
     @Transactional
     public void procesarAvisoMercadoPago(long paymentId) {

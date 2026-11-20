@@ -11,13 +11,15 @@ import { PageHeaderComponent } from '../../../shared/components/page-header/page
 import { SelectorHijoComponent } from '../../../shared/components/selector-hijo/selector-hijo.component';
 import { uuid } from '../../../core/utils/uuid';
 import { MatriculaPagoComponent } from './matricula-pago.component';
+import { DatosCobroMp, MercadoPagoCheckoutComponent, ResultadoMp } from '../../../shared/components/mercadopago-checkout/mercadopago-checkout.component';
+import { Observable } from 'rxjs';
 
 const CLASE: Record<EstadoCuota, string> = { PENDIENTE: 'badge-warn', PARCIAL: 'badge-violet', PAGADA: 'badge-ok', VENCIDA: 'badge-danger', ANULADA: 'badge-gray' };
 const PAGABLES: EstadoCuota[] = ['PENDIENTE', 'VENCIDA', 'PARCIAL'];
 
 @Component({
   selector: 'app-familia-pagos',
-  imports: [DatePipe, DecimalPipe, ModalComponent, PageHeaderComponent, SelectorHijoComponent, MatriculaPagoComponent],
+  imports: [DatePipe, DecimalPipe, ModalComponent, PageHeaderComponent, SelectorHijoComponent, MatriculaPagoComponent, MercadoPagoCheckoutComponent],
   templateUrl: './familia-pagos.component.html'
 })
 export class FamiliaPagosComponent implements OnInit {
@@ -71,6 +73,7 @@ export class FamiliaPagosComponent implements OnInit {
     this.api.estadoPasarela().subscribe({
       next: p => {
         this.pasarelaReal.set(p.pasarela === 'MERCADOPAGO');
+        this.publicKey.set(p.publicKey ?? '');
         if (retorno && p.pasarela === 'MERCADOPAGO') this.consultarRetorno(retorno);
       },
       error: () => this.pasarelaReal.set(false)
@@ -159,6 +162,28 @@ export class FamiliaPagosComponent implements OnInit {
       this.cargar(this.ctx.seleccionado()?.alumnoId);
       this.cargarEnviados();
     }
+  }
+
+  /** Clave pública de Mercado Pago: con ella se paga aquí mismo (Yape o tarjeta). */
+  protected readonly publicKey = signal('');
+
+  /** Cobra las cuotas elegidas en nuestra pantalla. Cada intento lleva su propia clave: un rechazo libera las cuotas para reintentar. */
+  protected readonly cobrarMp = (d: DatosCobroMp): Observable<ResultadoMp> => {
+    const h = this.ctx.seleccionado()!;
+    const detalles = this.pagables().filter(c => this.elegidas().has(c.id)).map(c => ({ cuotaId: c.id, montoAplicado: c.saldo }));
+    const pago = { alumnoId: h.alumnoId, montoTotal: detalles.reduce((s, x) => s + x.montoAplicado, 0), medio: 'MERCADOPAGO' as const, idempotencyKey: uuid(), detalles };
+    return this.api.pagarPensionesMercadoPagoDirecto(pago, d);
+  };
+
+  /** Pago aprobado: se cierra el diálogo y se recargan la cuenta y los pagos. */
+  protected pagoMpTerminado(): void {
+    this.avisos.success('Pago recibido con Mercado Pago. Te llegará el comprobante.');
+    setTimeout(() => {
+      this.confirmando.set(false);
+      this.elegidas.set(new Set());
+      this.cargar(this.ctx.seleccionado()?.alumnoId);
+      this.cargarEnviados();
+    }, 1800);
   }
 
   protected pagar(): void {

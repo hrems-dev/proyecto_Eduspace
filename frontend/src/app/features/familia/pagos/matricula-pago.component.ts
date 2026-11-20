@@ -8,6 +8,8 @@ import { CobroService } from '../../../core/services/cobro.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { mensajeError } from '../../../core/utils/errores';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
+import { DatosCobroMp, MercadoPagoCheckoutComponent, ResultadoMp } from '../../../shared/components/mercadopago-checkout/mercadopago-checkout.component';
+import { Observable } from 'rxjs';
 import { BANCOS_PASARELA, ETIQUETA_MEDIO, MEDIOS_PASARELA, datosDelMedio, faltaEnDatos } from './pasarela';
 
 const ESPERA_MS = 3000;
@@ -21,7 +23,7 @@ const INTENTOS_MAX = 12;
  */
 @Component({
   selector: 'app-matricula-pago',
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, MercadoPagoCheckoutComponent],
   template: `
     @if (estado(); as e) {
       @if (e.estadoMatricula === 'PRE_MATRICULA') {
@@ -147,9 +149,16 @@ const INTENTOS_MAX = 12;
             </dl>
 
             @if (pasarelaReal()) {
-              <div class="aviso aviso-ok" role="status" style="margin-top: 16px">
-                Pagarás en <strong>Mercado Pago</strong>, con tarjeta, Yape, transferencia o efectivo según lo que te ofrezca. El colegio no recibe los datos de tu tarjeta.
-              </div>
+              @if (publicKey()) {
+                <div style="margin-top: 16px">
+                  <app-mercadopago-checkout [monto]="o.monto" [publicKey]="publicKey()" [cobrar]="cobrarMp" [conOtrosMedios]="true"
+                    (terminado)="pagoMpTerminado()" (otrosMedios)="irAMercadoPago(o.codigo)" />
+                </div>
+              } @else {
+                <div class="aviso aviso-ok" role="status" style="margin-top: 16px">
+                  Pagarás en <strong>Mercado Pago</strong>. El colegio no recibe los datos de tu tarjeta.
+                </div>
+              }
               @if (modoPasarela() === 'PRUEBA') {
                 <div class="aviso aviso-warn" role="status" style="margin-top: 12px">Cuenta de <strong>prueba</strong>: no se cobra dinero real.</div>
               }
@@ -191,8 +200,10 @@ const INTENTOS_MAX = 12;
           @if (resultado()?.aprobada) {
             <button type="button" class="btn btn-primary" (click)="cerrar()">Listo</button>
           } @else if (pasarelaReal()) {
-            <button type="button" class="btn" (click)="cerrar()">Cancelar</button>
-            <button type="button" class="btn btn-primary" [disabled]="!orden()" (click)="irAMercadoPago(orden()!.codigo)">Ir a Mercado Pago</button>
+            <button type="button" class="btn" (click)="cerrar()">Cerrar</button>
+            @if (!publicKey()) {
+              <button type="button" class="btn btn-primary" [disabled]="!orden()" (click)="irAMercadoPago(orden()!.codigo)">Ir a Mercado Pago</button>
+            }
           } @else {
             <button type="button" class="btn" (click)="cerrar()">Cancelar</button>
             <button type="button" class="btn btn-primary" [disabled]="pagando() || !orden()" (click)="pagar()">{{ pagando() ? 'Procesando…' : 'Pagar S/ ' + ((orden()?.monto ?? 0) | number: '1.2-2') }}</button>
@@ -271,7 +282,10 @@ export class MatriculaPagoComponent {
 
   constructor() {
     this.ordenRetorno = this.ruta.snapshot.queryParamMap.get('orden');
-    this.api.estadoPasarela().subscribe({ next: p => { this.pasarelaReal.set(p.pasarela === 'MERCADOPAGO'); this.modoPasarela.set(p.modo); }, error: () => this.pasarelaReal.set(false) });
+    this.api.estadoPasarela().subscribe({
+      next: p => { this.pasarelaReal.set(p.pasarela === 'MERCADOPAGO'); this.modoPasarela.set(p.modo); this.publicKey.set(p.publicKey ?? ''); },
+      error: () => this.pasarelaReal.set(false)
+    });
     effect(() => {
       const id = this.alumnoId();
       untracked(() => this.cargar(id));
@@ -345,7 +359,18 @@ export class MatriculaPagoComponent {
     });
   }
 
-  /** Mercado Pago cobra en su propia pantalla: aquí solo se pide la URL de pago y se redirige. */
+  /** Clave pública de Mercado Pago: con ella se paga aquí mismo (Yape o tarjeta). */
+  protected readonly publicKey = signal('');
+
+  protected readonly cobrarMp = (d: DatosCobroMp): Observable<ResultadoMp> => this.api.pagarOrdenMercadoPagoDirecto(this.orden()!.codigo, d);
+
+  /** Pago aprobado: se cierra el diálogo y se recarga la matrícula (se genera en unos segundos). */
+  protected pagoMpTerminado(): void {
+    this.avisos.success('Pago recibido con Mercado Pago. Tu matrícula se está generando.');
+    setTimeout(() => { this.abierto.set(false); this.cargar(this.alumnoId()); }, 1800);
+  }
+
+  /** Otros medios (PagoEfectivo, banca por internet): se paga en la web de Mercado Pago. */
   protected irAMercadoPago(codigo: string): void {
     this.api.pagarConMercadoPago(codigo).subscribe({
       next: r => { window.location.assign(r.redireccion); },

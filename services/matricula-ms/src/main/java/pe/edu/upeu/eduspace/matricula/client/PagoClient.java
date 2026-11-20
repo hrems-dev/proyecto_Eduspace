@@ -33,7 +33,16 @@ public interface PagoClient {
     @PostMapping("/internal/pagos/matricula-en-linea/mercadopago/sincronizar")
     void sincronizarMercadoPago(@RequestBody ProcesoMatricula body);
 
-    record PasarelaInfo(boolean mercadopago, String modo) {}
+    /** Cobra la matrícula en nuestra pantalla (tarjeta o Yape) con el token de MercadoPago.js; el resultado es inmediato. */
+    @PostMapping("/internal/pagos/matricula-en-linea/mercadopago/directo")
+    ResultadoMercadoPago pagarDirecto(@RequestBody CobroMatriculaPublica body);
+
+    record DatosCobro(String token, String metodo, String emisor, Integer cuotas, String email, String tipoDocumento, String numeroDocumento) {}
+    record CobroMatriculaPublica(Long alumnoId, DatosCobro cobro) {}
+    /** estado: APROBADO, PENDIENTE o RECHAZADO; mensaje: el motivo en palabras para la familia. */
+    record ResultadoMercadoPago(String estado, String mensaje, String operacion, String referencia) {}
+
+    record PasarelaInfo(boolean mercadopago, String modo, String publicKey) {}
     record ProcesoMatricula(Long alumnoId, String rutaVuelta) {}
     record PreferenciaMatricula(String codigo, String redireccion, String modo) {}
 

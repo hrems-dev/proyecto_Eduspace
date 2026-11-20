@@ -69,7 +69,16 @@ public class MatriculaPagoController {
     @Operation(summary = "Qué pasarela de pago está activa (Mercado Pago real o la de demostración) y en qué modo")
     public Map<String, Object> estadoPasarela() {
         var mp = props.getMercadopago();
-        return Map.of("pasarela", mp.habilitado() ? "MERCADOPAGO" : "SIMULADA", "modo", mp.modo());
+        // La clave pública es pública por diseño: MercadoPago.js la usa en el navegador para tokenizar la tarjeta o Yape.
+        return Map.of("pasarela", mp.habilitado() ? "MERCADOPAGO" : "SIMULADA", "modo", mp.modo(),
+            "publicKey", mp.habilitado() && mp.getPublicKey() != null ? mp.getPublicKey() : "");
+    }
+
+    @PostMapping("/pasarela/ordenes/{codigo}/mercadopago/directo")
+    @Operation(summary = "Cobra la orden en nuestra pantalla (tarjeta o Yape) con el token de MercadoPago.js; el monto lo fija el servidor")
+    public ResultadoMercadoPago pagarDirecto(@PathVariable String codigo, @RequestBody pe.edu.upeu.eduspace.pago.client.MercadoPagoClient.DatosCobro datos,
+                                             @AuthenticationPrincipal Jwt jwt, Authentication auth) {
+        return servicio.pagarDirecto(codigo, datos, UsuarioActual.id(jwt), personal(auth));
     }
 
     @PostMapping("/pasarela/ordenes/{codigo}/mercadopago")

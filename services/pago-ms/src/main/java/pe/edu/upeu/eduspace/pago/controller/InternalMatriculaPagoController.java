@@ -48,7 +48,7 @@ public class InternalMatriculaPagoController {
     private final PagoProperties props;
 
     /** Qué pasarela cobra: Mercado Pago (real) o la de demostración. */
-    public record PasarelaInterna(boolean mercadopago, String modo) {}
+    public record PasarelaInterna(boolean mercadopago, String modo, String publicKey) {}
 
     /** Pedido de pago de la matrícula de un alumno desde el sitio público (sin sesión). */
     public record ProcesoMatricula(@NotNull Long alumnoId, String rutaVuelta) {}
@@ -58,7 +58,8 @@ public class InternalMatriculaPagoController {
 
     @GetMapping("/pagos/pasarela")
     public PasarelaInterna pasarela() {
-        return new PasarelaInterna(props.getMercadopago().habilitado(), props.getMercadopago().modo());
+        var mp = props.getMercadopago();
+        return new PasarelaInterna(mp.habilitado(), mp.modo(), mp.habilitado() && mp.getPublicKey() != null ? mp.getPublicKey() : "");
     }
 
     /**
@@ -69,6 +70,14 @@ public class InternalMatriculaPagoController {
     @PostMapping("/pagos/matricula-en-linea/mercadopago/sincronizar")
     public void sincronizarMatriculaMercadoPago(@Valid @RequestBody ProcesoMatricula req) {
         matriculaPago.sincronizarMatriculaPublica(req.alumnoId());
+    }
+
+    public record CobroMatriculaPublica(@NotNull Long alumnoId, @NotNull pe.edu.upeu.eduspace.pago.client.MercadoPagoClient.DatosCobro cobro) {}
+
+    /** Matrícula en línea cobrada en nuestra pantalla (tarjeta o Yape): el resultado es inmediato; si se aprueba, se avisa a matrícula-ms. */
+    @PostMapping("/pagos/matricula-en-linea/mercadopago/directo")
+    public pe.edu.upeu.eduspace.pago.service.MatriculaPagoService.ResultadoMercadoPago pagarDirectoMatricula(@Valid @RequestBody CobroMatriculaPublica req) {
+        return matriculaPago.pagarDirectoMatriculaPublica(req.alumnoId(), req.cobro());
     }
 
     @PostMapping("/pagos/matricula-en-linea/mercadopago")

@@ -83,6 +83,40 @@ public class PagoOnlineService {
         return new PreferenciaVista(PREFIJO_REFERENCIA + pago.getId(), pago.getPreferenciaUrl(), mp.modo());
     }
 
+    /**
+     * Pensiones pagadas en nuestra propia pantalla (tarjeta o Yape) con el token de MercadoPago.js: se registra el pago pendiente (reserva las
+     * cuotas), se cobra por el monto que calcula el servidor y el resultado se aplica en el acto. Si Mercado Pago lo rechaza, el pago queda
+     * rechazado y las cuotas libres para reintentar.
+     */
+    @Transactional(noRollbackFor = BusinessRuleException.class)
+    public MatriculaPagoService.ResultadoMercadoPago pagarDirecto(RegistrarPagoRequest req, MercadoPagoClient.DatosCobro datos, Long apoderadoUsuarioId) {
+        PagoProperties.MercadoPago mp = props.getMercadopago();
+        if (!mp.habilitado()) throw new BusinessRuleException("El pago con Mercado Pago no está activo en este servidor.");
+        if (datos == null || datos.token() == null || datos.token().isBlank() || datos.metodo() == null) {
+            throw new BusinessRuleException("Faltan los datos del pago.");
+        }
+        if (datos.email() == null || !datos.email().contains("@")) throw new BusinessRuleException("Escribe un correo válido para el comprobante de Mercado Pago.");
+        exigirQueSeaDelApoderado(req, apoderadoUsuarioId);
+        req.setMedio("MERCADOPAGO");
+        if (req.getReferencia() == null || req.getReferencia().isBlank()) req.setReferencia("MP-" + System.currentTimeMillis());
+
+        PagoResponse creado = pagoService.solicitarPagoOnline(req, apoderadoUsuarioId);
+        Pago pago = pagoRepository.findById(creado.getId()).orElseThrow();
+        String referencia = PREFIJO_REFERENCIA + pago.getId();
+        String aviso = mp.getPublicBaseUrl() == null || mp.getPublicBaseUrl().isBlank() ? null
+            : mp.getPublicBaseUrl().replaceAll("/+$", "") + "/api/v1/pagos/pasarela/mercadopago/notificacion";
+        MercadoPagoClient.Pago p;
+        try {
+            p = mercadoPago.cobrar(referencia, pago.getMontoTotal(), "Pensiones EduSpace", datos, aviso);
+        } catch (BusinessRuleException e) {
+            pagoService.rechazarPorPasarela(pago.getId(), e.getMessage());
+            throw e;
+        }
+        log.info("Cobro {} de Mercado Pago ({}) para el pago de pensiones {}: {} {}", p.id(), datos.metodo(), pago.getId(), p.estado(), p.estadoDetalle());
+        matriculaPago.procesarPagoMercadoPago(p);
+        return MatriculaPagoService.ResultadoMercadoPago.de(p);
+    }
+
     /** Respaldo al volver de Mercado Pago: una sola consulta, y solo para el apoderado que hizo ese pago. */
     public void sincronizarPension(Long pagoId, Long usuarioId) {
         Pago pago = pagoRepository.findById(pagoId).orElseThrow(() -> new pe.edu.upeu.eduspace.pago.exception.ResourceNotFoundException("Pago no encontrado: " + pagoId));

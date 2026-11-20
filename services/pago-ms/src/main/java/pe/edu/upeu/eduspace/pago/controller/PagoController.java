@@ -64,6 +64,18 @@ public class PagoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(pagoOnlineService.pagarConMercadoPago(req, usuarioId));
     }
 
+    /** Pensiones cobradas en nuestra pantalla: las cuotas a pagar y el token de MercadoPago.js (tarjeta o Yape). */
+    public record PagoDirectoRequest(@Valid @jakarta.validation.constraints.NotNull RegistrarPagoRequest pago,
+                                     @jakarta.validation.constraints.NotNull pe.edu.upeu.eduspace.pago.client.MercadoPagoClient.DatosCobro cobro) {}
+
+    @PostMapping("/online/mercadopago/directo")
+    @Operation(summary = "Pago de pensiones en nuestra pantalla con Mercado Pago (tarjeta o Yape) (APODERADO): el resultado es inmediato")
+    public MatriculaPagoService.ResultadoMercadoPago pagarOnlineMercadoPagoDirecto(@Valid @RequestBody PagoDirectoRequest req,
+                                                                                   @AuthenticationPrincipal Jwt jwt) {
+        Long usuarioId = pe.edu.upeu.eduspace.pago.security.UsuarioActual.id(jwt);
+        return pagoOnlineService.pagarDirecto(req.pago(), req.cobro(), usuarioId);
+    }
+
     @PostMapping("/online/mercadopago/{id}/sincronizar")
     @Operation(summary = "Al volver de Mercado Pago: consulta una vez el resultado del pago (APODERADO, solo sus pagos)")
     public ResponseEntity<Void> sincronizarPagoMercadoPago(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {

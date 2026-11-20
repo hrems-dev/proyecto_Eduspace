@@ -287,6 +287,41 @@ public class MatriculaEnLineaService {
         return resumen(mp, enRevision);
     }
 
+    /** Resultado del cobro con Mercado Pago en nuestra pantalla y el trámite ya actualizado. */
+    public record PagoMercadoPago(String estado, String mensaje, String operacion, Resumen resumen) {}
+
+    /**
+     * Matrícula en línea pagada en nuestra pantalla (tarjeta o Yape) con el token de MercadoPago.js. Si se aprueba, pago-ms avisa por evento y
+     * la matrícula pasa a revisión (la pantalla vuelve a consultar el resumen). Un rechazo no cambia nada: se puede reintentar.
+     */
+    public PagoMercadoPago pagarConMercadoPago(String referencia, String token, PagoClient.DatosCobro datos) {
+        MatriculaPublica mp = autorizar(referencia, token);
+        Matricula m = matriculas.findById(mp.getMatriculaId()).orElseThrow();
+        if (!"INICIADA".equals(mp.getEstado())) return new PagoMercadoPago("APROBADO", "La matrícula ya estaba pagada.", null, resumen(mp, m));
+        if (!"PRE_MATRICULA".equals(m.getEstado())) {
+            throw new BusinessRuleException("La reserva de esta matrícula ya no está vigente (estado " + m.getEstado() + "). Inicia una nueva solicitud.");
+        }
+        exigirDescuentoResuelto(mp);
+        if (!pasarela().mercadopago()) throw new BusinessRuleException("El pago con Mercado Pago no está activo.");
+        PagoClient.ResultadoMercadoPago r;
+        try {
+            r = pago.pagarDirecto(new PagoClient.CobroMatriculaPublica(m.getAlumnoId(), datos));
+        } catch (FeignException e) {
+            log.warn("pago-ms no cobró con Mercado Pago la matrícula {}: {} {}", m.getCodigo(), e.status(), e.contentUTF8());
+            if (e.status() == 409 || e.status() == 400) throw new BusinessRuleException(mensajeDe(e, "Mercado Pago no pudo procesar el pago. No se hizo ningún cobro."));
+            throw new ServicioNoDisponibleException("No pudimos procesar el pago con Mercado Pago. No se hizo ningún cobro; intenta de nuevo en unos minutos.");
+        }
+        return new PagoMercadoPago(r.estado(), r.mensaje(), r.operacion(), resumen(mp, matriculas.findById(m.getId()).orElseThrow()));
+    }
+
+    /** El "mensaje" del error de otro servicio ({"mensaje": "..."}), o el texto por defecto. */
+    private static String mensajeDe(FeignException e, String porDefecto) {
+        String c = e.contentUTF8();
+        if (c == null) return porDefecto;
+        var mt = java.util.regex.Pattern.compile("\"mensaje\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(c);
+        return mt.find() ? mt.group(1).replace("\\\"", "\"") : porDefecto;
+    }
+
     /** Qué pasarela usa el sitio público (para mostrar el botón de Mercado Pago o el formulario de demostración). */
     public PagoClient.PasarelaInfo pasarelaPublica() {
         return pasarela();

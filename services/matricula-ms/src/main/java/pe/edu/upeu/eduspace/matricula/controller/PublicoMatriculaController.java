@@ -53,6 +53,13 @@ public class PublicoMatriculaController {
         return servicio.pagar(referencia, token, pago.tarjeta());
     }
 
+    @PostMapping("/{referencia}/pagar-mercadopago")
+    @Operation(summary = "Paga la matrícula en nuestra pantalla con Mercado Pago (tarjeta o Yape) usando el token de MercadoPago.js")
+    public MatriculaEnLineaService.PagoMercadoPago pagarMercadoPago(@PathVariable String referencia, @RequestHeader(TOKEN) String token,
+                                                                   @RequestBody pe.edu.upeu.eduspace.matricula.client.PagoClient.DatosCobro datos) {
+        return servicio.pagarConMercadoPago(referencia, token, datos);
+    }
+
     @GetMapping("/{referencia}")
     public Resumen resumen(@PathVariable String referencia, @RequestHeader(TOKEN) String token) {
         return servicio.resumen(referencia, token);

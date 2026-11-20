@@ -31,3 +31,7 @@ infra/keycloak/.secreto-admin
 
 # Config local de auth-ms (contiene el secreto de Keycloak)
 services/auth-ms/config/
+
+# Logs y respaldos locales de los scripts de arranque
+tools/logs/
+tools/respaldos/

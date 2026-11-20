@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { DescuentoVista, InicioMatricula, OfertaMatricula, ResumenMatricula, SolicitudMatricula, Tarjeta } from '../models/matricula-publica.model';
+import { DatosCobroMp, ResultadoMp } from '../../shared/components/mercadopago-checkout/mercadopago-checkout.component';
 
 const API = '/api/v1/publico/matricula';
 const TOKEN = 'X-Matricula-Token';
@@ -30,9 +31,15 @@ export class MatriculaPublicaService {
     return this.http.post<ResumenMatricula>(`${API}/${referencia}/pagar`, { tarjeta }, { headers: new HttpHeaders({ [TOKEN]: token }) });
   }
 
-  /** Qué pasarela usa la matrícula en línea: Mercado Pago real o la de demostración. */
-  pasarela(): Observable<{ mercadopago: boolean; modo: string }> {
-    return this.http.get<{ mercadopago: boolean; modo: string }>(`${API}/pasarela`);
+  /** Cobro con Mercado Pago en nuestra pantalla (tarjeta o Yape): solo viaja el token de MercadoPago.js. */
+  pagarMercadoPago(referencia: string, token: string, datos: DatosCobroMp): Observable<ResultadoMp & { resumen: ResumenMatricula }> {
+    return this.http.post<ResultadoMp & { resumen: ResumenMatricula }>(`${API}/${referencia}/pagar-mercadopago`, datos,
+      { headers: new HttpHeaders({ [TOKEN]: token }) });
+  }
+
+  /** Qué pasarela usa la matrícula en línea: Mercado Pago real o la de demostración, y su clave pública. */
+  pasarela(): Observable<{ mercadopago: boolean; modo: string; publicKey?: string }> {
+    return this.http.get<{ mercadopago: boolean; modo: string; publicKey?: string }>(`${API}/pasarela`);
   }
 
   resumen(referencia: string, token: string): Observable<ResumenMatricula> {

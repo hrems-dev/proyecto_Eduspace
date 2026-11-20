@@ -8,6 +8,8 @@ import { PlanPago } from '../../core/models/matricula.model';
 import { AYUDA_PLAN, resumenDelPlan } from '../matriculas/plan-pago';
 import { MatriculaPublicaService } from '../../core/services/matricula-publica.service';
 import { ModalComponent } from '../../shared/components/modal/modal.component';
+import { DatosCobroMp, MercadoPagoCheckoutComponent, ResultadoMp } from '../../shared/components/mercadopago-checkout/mercadopago-checkout.component';
+import { Observable, map } from 'rxjs';
 import { costosConDescuento, normalizarCodigo, textoAplica, textoValor } from './descuento-matricula';
 
 type Paso = 'grado' | 'datos' | 'pago' | 'listo';
@@ -32,7 +34,7 @@ const documentoValido = (control: AbstractControl): ValidationErrors | null => {
  */
 @Component({
   selector: 'app-matricula-en-linea',
-  imports: [ReactiveFormsModule, DecimalPipe, RouterLink, ModalComponent],
+  imports: [ReactiveFormsModule, DecimalPipe, RouterLink, ModalComponent, MercadoPagoCheckoutComponent],
   encapsulation: ViewEncapsulation.None,
   template: `
     <section class="pub-cab-tit"><div class="pub-wrap">
@@ -391,14 +393,20 @@ const documentoValido = (control: AbstractControl): ValidationErrors | null => {
 
     @if (modalPago()) {
       @if (pasarelaReal()) {
-        <app-modal titulo="Pagar con Mercado Pago" [ancho]="460" (cerrar)="cerrarPago()">
-          <div class="mel-monto">Total a pagar <b>S/ {{ (inicio()?.montoMatricula ?? 0) | number: '1.2-2' }}</b></div>
-          <p>Te llevaremos a <b>Mercado Pago</b>, donde pagas con tarjeta, Yape u otros medios. El colegio no recibe los datos de tu tarjeta.
-            Al aprobarse el pago, tu matrícula pasa a revisión y te enviamos el correo.</p>
+        <app-modal titulo="Pagar la matrícula" [ancho]="480" (cerrar)="cerrarPago()">
+          @if (publicKey()) {
+            <app-mercadopago-checkout [monto]="inicio()?.montoMatricula ?? 0" [publicKey]="publicKey()" [email]="f.apoderado.value.email || null"
+              [cobrar]="cobrarMp" [conOtrosMedios]="true" (terminado)="pagoMpTerminado()" (otrosMedios)="irAMercadoPago()" />
+            <p class="muted" style="margin: 10px 0 0">Al aprobarse el pago, tu matrícula pasa a revisión y te enviamos el correo.</p>
+          } @else {
+            <p>Te llevaremos a <b>Mercado Pago</b>, donde pagas con tarjeta, Yape u otros medios.</p>
+          }
           @if (errorPago()) { <div class="mel-error" role="alert">{{ errorPago() }}</div> }
           <ng-container footer>
-            <button type="button" class="pub-btn pub-btn-borde" [disabled]="pagando()" (click)="cerrarPago()">Cancelar</button>
-            <button type="button" class="pub-btn pub-btn-primario" [disabled]="pagando()" (click)="irAMercadoPago()">{{ pagando() ? 'Abriendo Mercado Pago…' : 'Ir a Mercado Pago' }}</button>
+            <button type="button" class="pub-btn pub-btn-borde" [disabled]="pagando()" (click)="cerrarPago()">Cerrar</button>
+            @if (!publicKey()) {
+              <button type="button" class="pub-btn pub-btn-primario" [disabled]="pagando()" (click)="irAMercadoPago()">{{ pagando() ? 'Abriendo Mercado Pago…' : 'Ir a Mercado Pago' }}</button>
+            }
           </ng-container>
         </app-modal>
       } @else {
@@ -656,7 +664,10 @@ export class MatriculaEnLineaComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.api.pasarela().subscribe({ next: p => this.pasarelaReal.set(p.mercadopago), error: () => this.pasarelaReal.set(false) });
+    this.api.pasarela().subscribe({
+      next: p => { this.pasarelaReal.set(p.mercadopago); this.publicKey.set(p.publicKey ?? ''); },
+      error: () => this.pasarelaReal.set(false)
+    });
     this.api.oferta().subscribe({
       next: o => {
         this.oferta.set(o);
@@ -777,6 +788,35 @@ export class MatriculaEnLineaComponent implements OnInit {
 
   protected cerrarPago(): void {
     if (!this.pagando()) this.modalPago.set(false);
+  }
+
+  /** Clave pública de Mercado Pago: con ella se paga dentro de esta página (Yape o tarjeta). */
+  protected readonly publicKey = signal('');
+
+  /** Cobra en el servidor con el token de MercadoPago.js (Yape o tarjeta). */
+  protected readonly cobrarMp = (d: DatosCobroMp): Observable<ResultadoMp> => {
+    const i = this.inicio()!;
+    return this.api.pagarMercadoPago(i.referencia, i.token, d).pipe(map(r => { this.resumen.set(r.resumen); return r; }));
+  };
+
+  /** Pago aprobado (o en revisión): se muestra el resumen y se consulta hasta que la matrícula pase a revisión. */
+  protected pagoMpTerminado(): void {
+    setTimeout(() => {
+      this.modalPago.set(false);
+      this.paso.set('listo');
+      this.esperarConfirmacion(6);
+    }, 1800);
+  }
+
+  /** La confirmación llega por evento entre servicios: unas pocas consultas, cada 2 s, hasta que el trámite deje de estar INICIADA. */
+  private esperarConfirmacion(intentos: number): void {
+    const i = this.inicio();
+    const r = this.resumen();
+    if (!i || !r || intentos <= 0 || r.estado !== 'INICIADA') return;
+    setTimeout(() => this.api.resumen(r.referencia, i.token).subscribe({
+      next: nuevo => { this.resumen.set(nuevo); this.sincronizarMonto(nuevo); this.esperarConfirmacion(intentos - 1); },
+      error: () => this.esperarConfirmacion(intentos - 1)
+    }), 2000);
   }
 
   /** Mercado Pago: el servidor devuelve la URL de pago; la confirmación llega después por el aviso verificado. */

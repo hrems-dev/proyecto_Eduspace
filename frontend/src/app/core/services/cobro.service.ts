@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { Caja, CierreCaja, Comprobante, CreditoAlumno, Cuota, DatosPasarela, DescuentoDelAlumno, EstadoMatriculaPago, MatriculaPorPagar, OpcionDescuento, OrdenPago, PedidoDescuento, ResultadoPasarela, SolicitudDescuento, DepositoCredito, EstadoCuenta, FiltroCuotas, Pago, RegistrarPago, ResultadoCredito } from '../models/cobro.model';
 import { Page } from '../models/page.model';
+import { DatosCobroMp, ResultadoMp } from '../../shared/components/mercadopago-checkout/mercadopago-checkout.component';
 
 const API = '/api/v1/pagos';
 
@@ -26,8 +27,18 @@ export class CobroService {
     return this.http.post<ResultadoPasarela>(`${API}/pasarela/ordenes/${codigoOrden}/pagar`, datos);
   }
   /** Qué pasarela está activa: la real (Mercado Pago) o la de demostración, y en qué modo (PRUEBA o CUENTA). */
-  estadoPasarela(): Observable<{ pasarela: 'MERCADOPAGO' | 'SIMULADA'; modo: string }> {
-    return this.http.get<{ pasarela: 'MERCADOPAGO' | 'SIMULADA'; modo: string }>(`${API}/pasarela/estado`);
+  estadoPasarela(): Observable<{ pasarela: 'MERCADOPAGO' | 'SIMULADA'; modo: string; publicKey?: string }> {
+    return this.http.get<{ pasarela: 'MERCADOPAGO' | 'SIMULADA'; modo: string; publicKey?: string }>(`${API}/pasarela/estado`);
+  }
+
+  /** Cobra la orden de matrícula en nuestra pantalla (Yape o tarjeta) con el token de MercadoPago.js. */
+  pagarOrdenMercadoPagoDirecto(codigoOrden: string, datos: DatosCobroMp): Observable<ResultadoMp> {
+    return this.http.post<ResultadoMp>(`${API}/pasarela/ordenes/${codigoOrden}/mercadopago/directo`, datos);
+  }
+
+  /** Pensiones cobradas en nuestra pantalla (Yape o tarjeta): las cuotas y el token de MercadoPago.js. */
+  pagarPensionesMercadoPagoDirecto(pago: RegistrarPago, cobro: DatosCobroMp): Observable<ResultadoMp> {
+    return this.http.post<ResultadoMp>(`${API}/online/mercadopago/directo`, { pago, cobro });
   }
   /** La URL de Mercado Pago donde la familia paga la orden (el servidor fija el monto). */
   pagarConMercadoPago(codigoOrden: string): Observable<{ codigo: string; redireccion: string; modo: string }> {
