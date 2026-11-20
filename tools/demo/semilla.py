@@ -5,15 +5,21 @@
   python3 semilla.py familia     entregas, intento de examen, justificación y pago en línea (como ALUMNO y APODERADO)
   python3 semilla.py matriculas  secciones de todos los grados, tarifas por nivel y alumnos con expediente listo para matricular
   python3 semilla.py docentes    cursos de Primaria y docentes con su especialidad (para probar el armado automático de horarios)
+  python3 semilla.py variedad    casos por estado: matrículas (anulada, retirada, pago parcial, en línea por aprobar), deudas,
+                                 contratos vigentes/vencidos/rescindidos y pagos de personal (solicitado, aprobado, rechazado)
   python3 semilla.py todo
+Nota: el año se toma del año ACTIVO (un año cerrado es de solo lectura). Repetir una etapa no duplica los contratos ni los
+pagos de personal, pero sí vuelve a crear matrículas de alumnos que ya quedaron anuladas o retiradas.
 
 Necesita el backend arriba y los usuarios admin, secretaria, cajero, docente, apoderado y alumno (ver tools/demo/lib.py).
 Con Keycloak, el atributo usuarioId de docente/apoderado/alumno es 4, 5 y 6; la semilla los vincula a sus fichas.
 """
 import datetime
+import json
 import sys
 import uuid
 
+import lib
 from lib import call, esperar_backend, multipart, time, Resultado
 
 R = Resultado()
@@ -44,7 +50,8 @@ def contexto():
 # ------------------------------------------------------------------ base
 def base():
     anios = call('GET', '/api/v1/planificacion/anios', 'admin')[1]
-    anio = buscar_o_crear(anios, 'nombre', ANIO, lambda: R.ok('crear año', call('POST', '/api/v1/planificacion/anios', 'admin', {'nombre': ANIO, 'fechaInicio': f'{ANIO}-03-02', 'fechaFin': f'{ANIO}-12-18'})))
+    # Usa el año ACTIVO (un año CERRADO es solo lectura); solo crea el del calendario si no hay ninguno activo.
+    anio = next((a for a in anios if a['estado'] == 'ACTIVO'), None) or buscar_o_crear(anios, 'nombre', ANIO, lambda: R.ok('crear año', call('POST', '/api/v1/planificacion/anios', 'admin', {'nombre': ANIO, 'fechaInicio': f'{ANIO}-03-02', 'fechaFin': f'{ANIO}-12-18'})))
     if anio['estado'] == 'PLANIFICADO':
         R.ok('activar año', call('PATCH', f"/api/v1/planificacion/anios/{anio['id']}/activar", 'admin', {}))
     periodos = call('GET', f"/api/v1/planificacion/periodos?anioId={anio['id']}", 'admin')[1]
@@ -166,7 +173,8 @@ def alumnos(anio, sec):
     cobrar(['Lucía', 'Mateo', 'Sofía'], ids)  # Diego queda en pre-matrícula
 
 
-def cobrar(nombres, ids):
+def cobrar(nombres, ids, medio='EFECTIVO', fraccion=1.0):
+    """Cobra la cuota de matrícula. Con fraccion < 1 es un pago parcial: la matrícula queda POR_APROBAR hasta que la administración la apruebe."""
     cj = call('GET', '/api/v1/pagos/caja/actual', 'cajero')
     if cj[0] != 200:
         R.ok('abrir caja', call('POST', '/api/v1/pagos/caja/abrir', 'cajero', {'montoApertura': 100}))
@@ -182,7 +190,9 @@ def cobrar(nombres, ids):
         if not cuota:
             print(f'   (sin cuota de matrícula pendiente para {nom}; ya estaba pagada o no se generó)')
             continue
-        R.ok(f'cobrar matrícula {nom}', call('POST', '/api/v1/pagos', 'cajero', {'alumnoId': aid, 'pagadorNombre': 'Apoderado', 'montoTotal': cuota['saldo'], 'medio': 'EFECTIVO', 'idempotencyKey': str(uuid.uuid4()), 'tipoComprobante': 'RECIBO', 'detalles': [{'cuotaId': cuota['id'], 'montoAplicado': cuota['saldo']}]}))
+        monto = round(cuota['saldo'] * fraccion, 2)
+        etiqueta = 'completo' if fraccion >= 1 else f'parcial {int(fraccion * 100)} %'
+        R.ok(f'cobrar matrícula {nom} ({medio}, {etiqueta})', call('POST', '/api/v1/pagos', 'cajero', {'alumnoId': aid, 'pagadorNombre': 'Apoderado', 'montoTotal': monto, 'medio': medio, 'idempotencyKey': str(uuid.uuid4()), 'tipoComprobante': 'RECIBO', 'detalles': [{'cuotaId': cuota['id'], 'montoAplicado': monto}]}))
     time.sleep(4)
 
 
@@ -193,7 +203,11 @@ def ahora_iso(dias=0, horas=0):
 
 def academico():
     anio, sec = contexto()
-    periodo = next(p for p in call('GET', f"/api/v1/planificacion/periodos?anioId={anio['id']}", 'docente')[1] if p['estado'] == 'ACTIVO')
+    periodos = call('GET', f"/api/v1/planificacion/periodos?anioId={anio['id']}", 'admin')[1]
+    if not any(p['estado'] == 'ACTIVO' for p in periodos):  # datos de demostración: el año activo puede no tener periodo en curso
+        R.ok('activar periodo 1 (demostración)', call('PATCH', f"/api/v1/planificacion/periodos/{periodos[0]['id']}/estado", 'admin', {'estado': 'ACTIVO'}))
+        periodos = call('GET', f"/api/v1/planificacion/periodos?anioId={anio['id']}", 'admin')[1]
+    periodo = next(p for p in periodos if p['estado'] == 'ACTIVO')
     mi = R.ok('docente: /docentes/mi', call('GET', '/api/v1/planificacion/docentes/mi', 'docente'))
     asigs = {a['cursoNombre']: a for a in call('GET', f"/api/v1/planificacion/asignaciones?docenteId={mi['docenteId']}", 'docente')[1]}
     mate = asigs['Matemática']
@@ -407,6 +421,140 @@ def docentes():
             R.ok(f'docente {nom} {ape}', call('POST', '/api/v1/planificacion/docentes', 'secretaria', {'tipoDocumento': 'DNI', 'numeroDocumento': dni, 'nombres': nom, 'apellidos': ape, 'email': f'{nom.lower()}.{ape.split()[0].lower()}@eduspace.test'.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('ñ', 'n'), 'especialidad': esp}))
 
 
+# ------------------------------------------------------------------ variedad de estados (para probar casos y transacciones)
+ALUMNOS_VARIEDAD = [  # nombres ficticios; (nombres, apellidos, nacimiento, sexo, apoderado: nombres, apellidos, parentesco)
+    ('Alessia', 'Pillco', 'Ayma', '2019-02-20', 'F', ('Rosa', 'Ayma', 'MADRE')),
+    ('Bryan', 'Cáceres', 'Villanueva', '2018-06-15', 'M', ('Hugo', 'Villanueva', 'PADRE')),
+    ('Milagros', 'Ortiz', 'Chura', '2019-08-30', 'F', ('Elena', 'Chura', 'MADRE')),
+    ('Gael', 'Ramos', 'Pari', '2018-11-02', 'M', ('Marco', 'Pari', 'PADRE')),
+    ('Fernanda', 'Soto', 'Mamani', '2019-01-17', 'F', ('Nelly', 'Mamani', 'MADRE')),
+    ('Joel', 'Vásquez', 'Puma', '2018-03-25', 'M', ('Víctor', 'Puma', 'PADRE')),
+]
+
+
+def en_linea(cantidad=3):
+    """Matrículas en línea (sitio público) pagadas con la tarjeta de prueba de la pasarela simulada: quedan POR_APROBAR.
+    No usa limpiar_pruebas.py (borraría los datos de la semilla)."""
+    import urllib.request, urllib.error
+    def pub(metodo, ruta, cuerpo=None, token=None):
+        h = {'Content-Type': 'application/json'}
+        if token:
+            h['X-Matricula-Token'] = token
+        r = urllib.request.Request(lib.GW + ruta, data=json.dumps(cuerpo).encode() if cuerpo is not None else None, headers=h, method=metodo)
+        try:
+            with urllib.request.urlopen(r, timeout=40) as x:
+                t = x.read().decode()
+                return x.status, (json.loads(t) if t.strip()[:1] in ('{', '[') else t)
+        except urllib.error.HTTPError as e:
+            t = e.read().decode()
+            try:
+                return e.code, json.loads(t)
+            except ValueError:
+                return e.code, t
+    oferta = pub('GET', '/api/v1/publico/matricula/oferta')[1]
+    grados = [g for n in (oferta.get('niveles', []) if isinstance(oferta, dict) else []) for g in n['grados'] if g['vacantes'] > 0 and g.get('matricula')]
+    if not grados:
+        print('   (en línea: ningún grado tiene vacantes y tarifa de matrícula; revisa la campaña)')
+        return
+    grado = max(grados, key=lambda g: g['vacantes'])
+    base = int(time.time()) % 100000
+    nombres = [('Valeria', 'Camacho', 'Soto', 'F'), ('Mateo', 'Salinas', 'Ruiz', 'M'), ('Renata', 'Ibarra', 'León', 'F'), ('Thiago', 'Paredes', 'Cruz', 'M')]
+    apoderados = [('Rosa', 'Camacho Reyes', 'MADRE'), ('Luis', 'Salinas Mora', 'PADRE'), ('Elena', 'Ibarra Gómez', 'MADRE'), ('Jorge', 'Paredes Lara', 'PADRE')]
+    for k in range(cantidad):
+        n = base + k
+        doc_a, doc_p = f'76{n % 1000000:06d}', f'46{n % 1000000:06d}'
+        nom, ap1, ap2, sexo = nombres[k % len(nombres)]
+        pnom, pape, par = apoderados[k % len(apoderados)]
+        sol = {'gradoId': grado['id'], 'acepto': True, 'sitio': '',
+               'alumno': {'tipoDocumento': 'DNI', 'numeroDocumento': doc_a, 'nombres': nom, 'apellidoPaterno': ap1, 'apellidoMaterno': ap2, 'fechaNacimiento': '2018-04-12', 'sexo': sexo},
+               'apoderado': {'tipoDocumento': 'DNI', 'numeroDocumento': doc_p, 'nombres': pnom, 'apellidos': pape, 'telefono': '999111222', 'email': f'familia.{doc_p}@ejemplo.pe', 'parentesco': par}}
+        s, ini = pub('POST', '/api/v1/publico/matricula', sol)
+        if s != 201:
+            R.ok(f'matrícula en línea {nom} {ap1} (reserva)', (s, ini))
+            continue
+        R.ok(f"matrícula en línea {ini.get('referencia')} (reserva, {grado['nombre']})", (s, ini), esperado=201)
+        s2, res = pub('POST', f"/api/v1/publico/matricula/{ini['referencia']}/pagar", {'tarjeta': {'numero': '4242 4242 4242 4242', 'titular': 'PRUEBA', 'vencimiento': '12/30', 'cvv': '123'}}, token=ini['token'])
+        R.ok(f"matrícula en línea {ini.get('referencia')} pagada (tarjeta de prueba) → POR_APROBAR", (s2, res))
+
+
+def variedad():
+    anio, sec = contexto()
+    # 1) alumnos nuevos con apoderado (uno por caso)
+    ids = {}
+    existentes = {a['nombreCompleto']: a for a in call('GET', '/api/v1/alumnos?page=0&size=100', 'secretaria')[1]['contenido']}
+    for i, (nom, ap, am, nac, sexo, (anom, aap, par)) in enumerate(ALUMNOS_VARIEDAD, start=1):
+        nombre = f'{ap} {am}, {nom}'
+        if nombre in existentes:
+            ids[nom] = existentes[nombre]['id']
+            continue
+        vinculo = {'apoderado': {'numeroDocumento': f'4210{i:04d}', 'nombres': anom, 'apellidos': aap, 'telefono': f'9991110{i}', 'email': f'apoderado{i}@ejemplo.com'},
+                   'parentesco': par, 'esPrincipal': True, 'esResponsablePago': True, 'viveConAlumno': True, 'puedeRecoger': True}
+        a = R.ok(f'alumno {nom} {ap}', call('POST', '/api/v1/alumnos', 'secretaria', {'numeroDocumento': f'74100{i:03d}', 'nombres': nom, 'apellidoPaterno': ap, 'apellidoMaterno': am,
+                                                                                    'fechaNacimiento': nac, 'sexo': sexo, 'distrito': 'Miraflores', 'apoderados': [vinculo]}))
+        ids[nom] = a['id']
+        asegurar_expediente(a['id'])
+    # 2) matrículas por caso: PRE_MATRICULA, ANULADO, POR_APROBAR, MATRICULADO (con deuda), MATRICULADO → RETIRADO
+    def matricula(nom):
+        return R.ok(f'matrícula {nom}', call('POST', '/api/v1/matriculas', 'secretaria', {'alumnoId': ids[nom], 'seccionId': sec['id'], 'tipo': 'NUEVA'}))
+    matricula('Alessia')
+    m = matricula('Bryan')
+    R.ok('anular matrícula de Bryan', call('PATCH', f"/api/v1/matriculas/{m['id']}/anular", 'secretaria', {'motivo': 'El apoderado desistió antes de pagar'}))
+    matricula('Milagros')
+    time.sleep(3)
+    cobrar(['Milagros'], ids, medio='TRANSFERENCIA')                  # MATRICULADO (pago completo)
+    cobrar(['Alessia'], ids, medio='TRANSFERENCIA', fraccion=0.5)    # pago parcial → POR_APROBAR (la administración decide)
+    matricula('Gael')
+    matricula('Fernanda')
+    matricula('Joel')
+    time.sleep(3)
+    cobrar(['Gael', 'Fernanda', 'Joel'], ids, medio='EFECTIVO')       # MATRICULADO; Joel queda con las pensiones pendientes (deuda)
+    m = call('GET', f"/api/v1/matriculas?anioId={anio['id']}&page=0&size=100", 'secretaria')[1]['contenido']
+    fer = next((x for x in m if x['alumnoId'] == ids['Fernanda'] and x['estado'] == 'MATRICULADO'), None)
+    if fer:
+        R.ok('retirar matrícula de Fernanda', call('PATCH', f"/api/v1/matriculas/{fer['id']}/retiro", 'secretaria', {'motivo': 'La familia se mudó de distrito'}))
+    # 3) personal: contratos (activo, vencido, rescindido) y pagos (pagado, por aprobar, aprobado, rechazado)
+    docs = call('GET', '/api/v1/planificacion/docentes?page=0&size=50', 'admin')[1]['contenido']
+    if len(docs) >= 6:
+        def contrato(d, body):
+            """Una persona tiene un solo contrato: si ya existe, se reutiliza (repetir la semilla no falla)."""
+            lista = call('GET', f"/api/v1/planificacion/rrhh/contratos?personalId={docs[d]['id']}", 'admin')[1]
+            if isinstance(lista, list) and lista:
+                return lista[-1]
+            return R.ok(f"contrato {body['tipo']}: docente {d + 1}", call('POST', '/api/v1/planificacion/rrhh/contratos', 'admin', {'personalId': docs[d]['id'], **body}))
+
+        c = {}
+        c[0] = contrato(0, {'tipo': 'INDEFINIDO', 'cargo': 'Docente de aula', 'fechaInicio': '2026-03-02', 'remuneracion': 2800, 'observaciones': 'Datos de demostración'})
+        c[1] = contrato(1, {'tipo': 'INDEFINIDO', 'cargo': 'Docente de aula', 'fechaInicio': '2026-03-02', 'remuneracion': 2800})
+        c[2] = contrato(2, {'tipo': 'PLAZO_FIJO', 'cargo': 'Auxiliar', 'fechaInicio': '2026-03-02', 'fechaFin': '2027-12-17', 'remuneracion': 1900})
+        c[3] = contrato(3, {'tipo': 'PLAZO_FIJO', 'cargo': 'Docente de aula', 'fechaInicio': '2025-03-03', 'fechaFin': '2026-10-31', 'remuneracion': 2600})
+        c[4] = contrato(4, {'tipo': 'INDEFINIDO', 'cargo': 'Docente de aula', 'fechaInicio': '2025-03-03', 'remuneracion': 2600})
+        R.ok('rescindir contrato: docente 5', call('POST', f"/api/v1/planificacion/rrhh/contratos/{c[4]['id']}/rescindir", 'admin', {'fecha': '2026-11-15', 'motivo': 'Renuncia voluntaria'}), esperado=(200, 201, 409))
+
+        def pago(d, periodo, concepto, monto, contrato):
+            """Reutiliza el pago si ya existe (repetir la semilla no duplica); si no, lo registra."""
+            lista = call('GET', f"/api/v1/planificacion/rrhh/pagos?personalId={docs[d]['id']}&periodo={periodo}", 'admin')[1]
+            existente = next((p for p in lista if p['concepto'] == concepto), None) if isinstance(lista, list) else None
+            return existente or R.ok(f'registrar pago {concepto} {periodo}: docente {d + 1}', call('POST', '/api/v1/planificacion/rrhh/pagos', 'admin', {'personalId': docs[d]['id'], 'contratoId': contrato, 'periodo': periodo, 'concepto': concepto, 'monto': monto, 'descripcion': 'Demostración'}))
+
+        def solicitar(p, medio='TRANSFERENCIA'):
+            # Caja solicita el pago indicando el medio; el administrador lo aprueba o lo rechaza en «Por aprobar».
+            return R.ok(f"caja solicita {p['concepto']} {p['periodo']} (id {p['id']})", call('POST', f"/api/v1/planificacion/pago-personal/pagos/{p['id']}/solicitar", 'cajero', {'medio': medio, 'referencia': f"DEMO-{p['id']}", 'fechaPago': '2026-11-19'}), esperado=(200, 201, 409))
+
+        p = pago(0, '2026-10', 'SUELDO', 2800, c[0]['id'])
+        solicitar(p)
+        R.ok(f"admin aprueba y paga {p['periodo']}: docente 1", call('POST', f"/api/v1/planificacion/pago-personal/pagos/{p['id']}/aprobar", 'admin', {}), esperado=(200, 201, 409))
+        p = pago(1, '2026-11', 'SUELDO', 2800, c[1]['id'])
+        solicitar(p)                                                  # queda POR APROBAR (sin aprobar)
+        p = pago(2, '2026-11', 'BONO', 300, c[2]['id'])
+        solicitar(p)
+        R.ok('admin aprueba bono: docente 3', call('POST', f"/api/v1/planificacion/pago-personal/pagos/{p['id']}/aprobar", 'admin', {}), esperado=(200, 201, 409))
+        p = pago(3, '2026-11', 'ADELANTO', 500, c[3]['id'])
+        solicitar(p, medio='EFECTIVO')
+        R.ok('admin rechaza adelanto: docente 4', call('POST', f"/api/v1/planificacion/pago-personal/pagos/{p['id']}/rechazar", 'admin', {'motivo': 'Supera el límite de adelantos del mes'}), esperado=(200, 201, 409))
+    en_linea(3)   # matrículas en línea → POR_APROBAR (pendientes de aprobar)
+    print('   Variedad lista: revisa Matrículas (todos los estados), Pagos por aprobar, Personal y Contratos.')
+
+
 if __name__ == '__main__':
     etapa = sys.argv[1] if len(sys.argv) > 1 else 'base'
     if not esperar_backend():
@@ -421,4 +569,6 @@ if __name__ == '__main__':
         academico()
     if etapa in ('familia', 'todo'):
         familia()
+    if etapa in ('variedad', 'todo'):
+        variedad()
     raise SystemExit(R.fin())

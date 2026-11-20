@@ -1,0 +1,65 @@
+<!-- Resumen por periodo: elige un año y mira en qué va (periodo, matrícula, matrículas por estado y deudores) -->
+<section class="card" aria-labelledby="t-resumen-periodos" [class.resumen-cargando]="cargando()">
+  <div class="card-body">
+    <div class="resumen-cab">
+      <h2 id="t-resumen-periodos" class="sec-titulo">Resumen por periodo</h2>
+      <label class="resumen-selector">
+        <span>Periodo</span>
+        <select class="input" aria-label="Elegir periodo" [value]="anioId() ?? ''" (change)="elegir(+$any($event.target).value)">
+          @for (a of anios(); track a.id) {
+            <option [value]="a.id">{{ a.nombre }} · {{ textoAnio(a.estado) }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (!anio()) {
+      <p class="muted">No hay periodos registrados todavía. Créalos en Planificación → Años académicos.</p>
+    } @else {
+      <div class="resumen-grid">
+        <div class="resumen-dato" [class.ok]="anio()!.estado === 'ACTIVO'">
+          <span>Año {{ anio()!.nombre }}</span>
+          <strong>{{ textoAnio(anio()!.estado) }}</strong>
+        </div>
+
+        <div class="resumen-dato">
+          <span>Periodo en curso</span>
+          <strong>{{ periodoEnCurso()?.nombre ?? 'Ninguno' }}</strong>
+        </div>
+
+        <div class="resumen-dato" [class.ok]="campania()?.estado === 'ABIERTA'">
+          <span>Matrícula</span>
+          <strong>
+            @if (campania(); as c) {
+              {{ c.estado === 'ABIERTA' ? 'Abierta' : c.estado === 'CERRADA' ? 'Cerrada' : 'Planificada' }}
+            } @else {
+              Sin campaña
+            }
+          </strong>
+          @if (campania(); as c) { <small class="muted">{{ c.nombre }} · hasta {{ c.fechaFin }}</small> }
+        </div>
+
+        <div class="resumen-dato" [class.alerta]="(datos().morosos?.totalAlumnosMorosos ?? 0) > 0">
+          <span>Alumnos con deuda vencida</span>
+          <strong>{{ valor(datos().morosos?.totalAlumnosMorosos ?? null) }}</strong>
+          <small class="muted">{{ soles(datos().morosos?.totalDeudaAcumulada ?? null) }} por cobrar</small>
+        </div>
+      </div>
+
+      <div class="resumen-grid" style="margin-top: 12px">
+        @for (e of estados; track e.estado) {
+          <div class="resumen-dato">
+            <span>{{ e.texto }}</span>
+            <strong>{{ valor(datos().conteos?.[e.estado] ?? null) }}</strong>
+          </div>
+        }
+      </div>
+
+      <p class="resumen-pie">
+        <a routerLink="/matriculas">Ver matrículas →</a>
+        <a routerLink="/pagos/morosos">Ver morosos →</a>
+        <a routerLink="/planificacion/anios">Años y periodos →</a>
+      </p>
+    }
+  </div>
+</section>

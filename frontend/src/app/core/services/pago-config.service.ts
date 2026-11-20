@@ -62,10 +62,11 @@ export class PagoConfigService {
     return this.http.patch<AlertaAdmin>(`${API}/alertas/${id}/resolver`, {});
   }
 
-  morosos(seccionId?: number, gradoId?: number): Observable<Morosos> {
+  morosos(seccionId?: number, gradoId?: number, anioId?: number): Observable<Morosos> {
     let params = new HttpParams();
     if (seccionId) params = params.set('seccionId', seccionId);
     if (gradoId) params = params.set('gradoId', gradoId);
+    if (anioId) params = params.set('anioId', anioId);
     return this.http.get<Morosos>(`${API}/morosos`, { params });
   }
 }

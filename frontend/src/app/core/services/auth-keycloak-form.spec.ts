@@ -43,18 +43,18 @@ describe('AuthService · keycloak-form (formulario de EduSpace validado por Keyc
     expect(auth.debeCambiarClave()).toBe(false);
   });
 
-  it('si auth-ms indica clave temporal, obliga a cambiarla y lo conserva al renovar el token', () => {
+  it('con el interruptor OBLIGAR_CAMBIO_CLAVE apagado, no obliga a cambiar la clave aunque auth-ms lo indique', () => {
     const { auth, http } = configurar();
     let debe: boolean | undefined;
     auth.login({ username: 'maria.perez', password: '12345678' }).subscribe(r => (debe = r.debe_cambiar_clave));
     http.expectOne(TOKEN).flush(tokens(['ALUMNO']));
     http.expectOne(ESTADO_CLAVE).flush({ debeCambiarClave: true });
-    expect(debe).toBe(true);
-    expect(auth.debeCambiarClave()).toBe(true);
+    expect(debe).toBe(false);
+    expect(auth.debeCambiarClave()).toBe(false);
 
     auth.renovar().subscribe();
     http.expectOne(TOKEN).flush({ ...tokens(['ALUMNO']), refresh_token: 'kc-refresh-2' });
-    expect(auth.debeCambiarClave()).toBe(true);
+    expect(auth.debeCambiarClave()).toBe(false);
   });
 
   it('renueva con el refresh token de Keycloak y cierra sesión contra Keycloak', () => {

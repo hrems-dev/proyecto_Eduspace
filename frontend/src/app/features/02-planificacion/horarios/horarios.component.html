@@ -1,5 +1,6 @@
 <div class="page">
   <app-page-header titulo="Horarios" subtitulo="Arma el horario semanal de cada sección. El sistema rechaza choques de docente, aula y sección.">
+    <a class="btn" routerLink="/planificacion/horarios-auto" title="Arma los horarios de todas las secciones a la vez">Armado automático</a>
     <button type="button" class="btn" [disabled]="!horario()" (click)="validar()">Validar</button>
     <button type="button" class="btn btn-primary" [disabled]="!horario()" (click)="publicar()">Publicar</button>
   </app-page-header>

@@ -17,6 +17,7 @@ import { MatriculaInicioComponent } from './matricula-inicio.component';
 import { PagosPorAprobarComponent } from '../personal/pagos-por-aprobar.component';
 import { SolicitudesDescuentoComponent } from '../matriculas/solicitudes-descuento.component';
 import { PorAprobarInicioComponent } from './por-aprobar-inicio.component';
+import { ResumenPeriodosComponent } from './resumen-periodos.component';
 import { hoyLocal } from '../personal/asistencia-personal';
 import { fechaCorta } from '../personal/rrhh';
 import { situacionDelPeriodo, textoDias } from './periodo-actual';
@@ -87,7 +88,7 @@ export const ACCESOS: Acceso[] = [
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, PageHeaderComponent, AulasPanelComponent, CursosDocentesComponent, MatriculaInicioComponent, PorAprobarInicioComponent, PagosPorAprobarComponent, SolicitudesDescuentoComponent],
+  imports: [RouterLink, PageHeaderComponent, AulasPanelComponent, CursosDocentesComponent, MatriculaInicioComponent, PorAprobarInicioComponent, PagosPorAprobarComponent, SolicitudesDescuentoComponent, ResumenPeriodosComponent],
   templateUrl: './dashboard.component.html',
   styles: `
     .card-periodo { position: relative; border-left: 5px solid var(--primary); }

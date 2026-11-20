@@ -1,17 +1,17 @@
 # Gateway: rutas y balanceo entre instancias  [s4.gateway]
-# Fecha y hora: 2026-11-19 20:21:30   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
+# Fecha y hora: 2026-11-19 21:49:47   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
 # Resultado: CORRECTO
 
 Rutas del Gateway (http://127.0.0.1:18080):
-   ✔ GET /api/v1/auth  →  HTTP 401  (auth-ms, 27 ms)
-   ✔ GET /api/v1/planificacion  →  HTTP 401  (planificacion-ms, 7 ms)
+   ✔ GET /api/v1/auth  →  HTTP 401  (auth-ms, 9 ms)
+   ✔ GET /api/v1/planificacion  →  HTTP 401  (planificacion-ms, 22 ms)
    ✔ GET /api/v1/alumnos  →  HTTP 401  (alumnos-ms, 3 ms)
-   ✔ GET /api/v1/notificaciones  →  HTTP 401  (notificaciones-ms, 3 ms)
-   ✔ GET /api/v1/calificaciones  →  HTTP 401  (calificaciones-ms, 3 ms)
-   ✔ GET /api/v1/pagos  →  HTTP 401  (pago-ms, 2 ms)
-   ✔ GET /api/v1/examenes  →  HTTP 401  (examenes-ms, 3 ms)
-   ✔ GET /api/v1/publico  →  HTTP 404  (matricula-ms, 30 ms)
-   ✔ GET /api/v1/asistencia  →  HTTP 401  (asistencia-ms, 3 ms)
+   ✔ GET /api/v1/notificaciones  →  HTTP 401  (notificaciones-ms, 2 ms)
+   ✔ GET /api/v1/calificaciones  →  HTTP 401  (calificaciones-ms, 2 ms)
+   ✔ GET /api/v1/pagos  →  HTTP 401  (pago-ms, 3 ms)
+   ✔ GET /api/v1/examenes  →  HTTP 401  (examenes-ms, 2 ms)
+   ✔ GET /api/v1/publico  →  HTTP 404  (matricula-ms, 37 ms)
+   ✔ GET /api/v1/asistencia  →  HTTP 401  (asistencia-ms, 2 ms)
    ✔ GET /api/v1/tareas  →  HTTP 401  (tareas-ms, 2 ms)
 
 Balanceo: ninguna aplicación con ruta tiene 2 instancias registradas; levanta una segunda para evidenciarlo.

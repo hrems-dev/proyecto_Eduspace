@@ -39,11 +39,10 @@ describe('guards', () => {
     expect(TestBed.runInInjectionContext(() => authGuard(ruta(), estado('/usuarios')))).toBe(true);
   });
 
-  it('con clave temporal solo deja entrar a /cambiar-clave', () => {
+  it('con el interruptor OBLIGAR_CAMBIO_CLAVE apagado, la clave temporal guardada no bloquea el ingreso', () => {
     iniciarSesion(['ADMIN'], true);
     entorno();
-    expect(vaA(TestBed.runInInjectionContext(() => authGuard(ruta(), estado('/usuarios'))), '/cambiar-clave')).toBe(true);
-    expect(TestBed.runInInjectionContext(() => authGuard(ruta(), estado('/cambiar-clave')))).toBe(true);
+    expect(TestBed.runInInjectionContext(() => authGuard(ruta(), estado('/usuarios')))).toBe(true);
   });
 
   it('guestGuard saca del login a quien ya inició sesión', () => {

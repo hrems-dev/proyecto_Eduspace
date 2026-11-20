@@ -1,1 +1,375 @@
-/* Styles for asistente-matricula.component.css */
+/* Asistente de matrícula: pasos, selector de alumno/apoderado y pie con los botones de cada paso. */
+
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── Pasos (lista horizontal de píldoras) ─────────────────────────── */
+.pasos {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink-2);
+  max-width: 100%;
+}
+
+.paso .num {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.paso .txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.paso .txt strong {
+  font-size: 0.9rem;
+}
+
+.paso .txt small {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.paso.hecho .num {
+  background: var(--ok);
+  color: #fff;
+}
+
+.paso.actual {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.paso.actual .num {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ── Cuerpo del paso ──────────────────────────────────────────────── */
+.asistente-cuerpo {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.asistente-cuerpo h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.asistente-cuerpo h3 {
+  margin: 18px 0 6px;
+  font-size: 1rem;
+}
+
+/* ── Selector de modo (Ya está registrado / Es nuevo) ─────────────── */
+.modos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.modo {
+  padding: 8px 16px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modo:hover {
+  border-color: var(--primary);
+}
+
+.modo.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.modo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Ficha del alumno o apoderado elegido ─────────────────────────── */
+.ficha-mini {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+/* ── Resumen de «Listo» ───────────────────────────────────────────── */
+.listo .siguientes {
+  margin: 12px 0 16px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.descuento-estado {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.descuento-estado p {
+  margin: 6px 0;
+}
+
+/* ── Pie: Atrás · motivo · Siguiente ──────────────────────────────── */
+.botones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.botones .espacio {
+  flex: 1 1 auto;
+}
+
+.botones .motivo {
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+/* En pantallas angostas los botones ocupan todo el ancho, uno debajo del otro */
+@media (max-width: 640px) {
+  .botones .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .botones .espacio {
+    display: none;
+  }
+}
+
+/* ── Apoderados ya registrados ────────────────────────────────────── */
+.vinculos {
+  list-style: none;
+  margin: 8px 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vinculos li {
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Resultados de búsqueda de apoderado ──────────────────────────── */
+.resultados {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.resultados li + li {
+  border-top: 1px solid var(--line);
+}
+
+.resultados button {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resultados button:hover {
+  background: var(--primary-soft);
+}
+
+/* ── Generador de documentos ──────────────────────────────────────── */
+.generador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-2);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+/* ── Lista de documentos ──────────────────────────────────────────── */
+.docs {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.doc-info {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-acc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.doc-acc .btn {
+  cursor: pointer;
+}
+
+.deshabilitado {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Descuento por hermano ────────────────────────────────────────── */
+.hermano-caja {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+}
+
+.hermano-caja legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.hermano-caja .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.hermano-cuerpo {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hermano-busca {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hermano-busca input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.hermano-ficha {
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.hermano-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ── Sección y plan elegidos (tarjetas de opción) ─────────────────── */
+.seccion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seccion:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.seccion.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.seccion:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

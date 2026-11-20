@@ -81,6 +81,9 @@
     </div>
   </section>
 
+  <!-- Elegir un año (2026, 2027…) para ver en qué va: periodo, matrícula, matrículas por estado y deudores -->
+  <app-resumen-periodos />
+
   <!-- Pagos al personal que caja ya registró: el administrador los aprueba o rechaza aquí mismo (solo aparece si hay alguno) -->
   @if (esAdmin()) { <app-pagos-por-aprobar /> }
 

@@ -34,11 +34,11 @@ describe('AuthService', () => {
     expect(sessionStorage.getItem('eduspace_refresh')).toBe('refresh-1');
   });
 
-  it('recuerda que la clave es temporal', () => {
+  it('con el interruptor OBLIGAR_CAMBIO_CLAVE apagado, no marca la clave como temporal', () => {
     const { auth, http } = configurar();
     auth.login({ username: 'u', password: 'x' }).subscribe();
     http.expectOne('/api/v1/auth/login').flush(respuesta(['SECRETARIA'], true));
-    expect(auth.debeCambiarClave()).toBe(true);
+    expect(auth.debeCambiarClave()).toBe(false);
   });
 
   it('varias renovaciones a la vez comparten una sola petición (el refresh token rota en cada uso)', () => {

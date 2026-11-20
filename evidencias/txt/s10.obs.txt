@@ -1,24 +1,24 @@
 # Observabilidad: health, Prometheus, Loki y Grafana  [s10.obs]
-# Fecha y hora: 2026-11-19 20:21:35   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
-# Resultado: CON OBSERVACIONES
+# Fecha y hora: 2026-11-19 21:49:48   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
+# Resultado: CORRECTO
 
-✔ eduspace-config              UP  (:18888, 5 ms)
-✔ eduspace-eureka              UP  (:18761, 4 ms)
-✔ eduspace-gateway             UP  (:18080, 4 ms)
+✔ eduspace-config              UP  (:18888, 7 ms)
+✔ eduspace-eureka              UP  (:18761, 2 ms)
+✔ eduspace-gateway             UP  (:18080, 3 ms)
 ✔ alumnos-ms                   UP  (:8092, 4 ms)
-✔ asistencia-ms                UP  (:8094, 3 ms)
-✔ auth-ms                      UP  (:8090, 4 ms)
-✔ calificaciones-ms            UP  (:8095, 4 ms)
+✔ asistencia-ms                UP  (:8094, 4 ms)
+✔ auth-ms                      UP  (:8090, 3 ms)
+✔ calificaciones-ms            UP  (:8095, 3 ms)
 ✔ examenes-ms                  UP  (:8097, 4 ms)
-✔ matricula-ms                 UP  (:8093, 4 ms)
-✔ notificaciones-ms            UP  (:8099, 5 ms)
-✔ pago-ms                      UP  (:8096, 4 ms)
+✔ matricula-ms                 UP  (:8093, 3 ms)
+✔ notificaciones-ms            UP  (:8099, 4 ms)
+✔ pago-ms                      UP  (:8096, 3 ms)
 ✔ planificacion-ms             UP  (:8091, 4 ms)
-✔ tareas-ms                    UP  (:8098, 4 ms)
+✔ tareas-ms                    UP  (:8098, 3 ms)
 
 13/13 servicios UP
 
 ✔ Prometheus   http://127.0.0.1:19090/api/v1/targets → HTTP 200
    targets: 11 up / 11
-✘ Loki         http://127.0.0.1:13100/ready → HTTP 503
+✔ Loki         http://127.0.0.1:13100/ready → HTTP 200
 ✔ Grafana      http://127.0.0.1:13000/api/health → HTTP 200

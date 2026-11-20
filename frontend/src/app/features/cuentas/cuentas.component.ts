@@ -24,6 +24,10 @@ interface Fila {
 }
 
 const TAMANO = 100;
+/** Cómo se llama cada rol en la pantalla de cuentas. */
+const ETIQUETA_ROL: Record<string, string> = {
+  ALUMNO: 'Alumno', APODERADO: 'Apoderado', DOCENTE: 'Docente', SECRETARIA: 'Secretaría', CAJERO: 'Caja', ADMIN: 'Administrador'
+};
 const ETIQUETA: Record<Estado, string> = {
   SIN_CUENTA: 'Sin cuenta', PRIMER_INGRESO: 'Aún no cambia su clave', ACTIVA: 'Activa', BLOQUEADA: 'Bloqueada', INACTIVA: 'Desactivada'
 };
@@ -88,11 +92,12 @@ function todas<T>(pagina: (n: number) => Observable<Page<T>>): Observable<T[]> {
     } @else {
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Nombre</th><th>Documento</th><th>Usuario</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Tipo de cuenta</th><th>Documento</th><th>Usuario</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead>
           <tbody>
             @for (f of visibles(); track clave(f)) {
               <tr>
                 <td>{{ f.nombre }}</td>
+                <td><span class="badge badge-info">{{ tipoCuenta(f) }}</span></td>
                 <td>{{ f.documento || '—' }}</td>
                 <td>@if (f.usuario) { <code>{{ f.usuario.username }}</code> } @else { <span class="muted">—</span> }</td>
                 <td><span [class]="'badge ' + badge(estadoDe(f))">{{ etiqueta(estadoDe(f)) }}</span></td>
@@ -112,7 +117,7 @@ function todas<T>(pagina: (n: number) => Observable<Page<T>>): Observable<T[]> {
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="6" class="muted">No hay resultados.</td></tr>
+              <tr><td colspan="7" class="muted">No hay resultados.</td></tr>
             }
           </tbody>
         </table>
@@ -156,6 +161,13 @@ export class CuentasComponent implements OnInit {
   protected readonly etiqueta = (e: Estado) => ETIQUETA[e];
   protected readonly badge = (e: Estado) => BADGE[e];
   protected readonly clave = (f: Fila) => `${f.persona?.tipo ?? 'P'}${f.persona?.id ?? f.usuario?.id}`;
+
+  /** Para qué es la cuenta: alumno, apoderado o docente (la persona de la ficha) o el rol del personal (su cuenta). */
+  protected tipoCuenta(f: Fila): string {
+    if (f.persona) return ETIQUETA_ROL[f.persona.tipo] ?? f.persona.tipo;
+    const rol = f.usuario?.roles?.find(r => r in ETIQUETA_ROL);
+    return rol ? ETIQUETA_ROL[rol] : '—';
+  }
 
   protected readonly visibles = computed(() => {
     const t = this.texto().trim().toLowerCase();

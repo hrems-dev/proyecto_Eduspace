@@ -197,7 +197,7 @@ export function resumenConfig(c: Pick<ConfigGrado, 'secciones' | 'turno' | 'capa
                   <span class="marca" aria-hidden="true">@if (g.enUso && estaElegido(g)) { 🔒 } @else if (estaElegido(g)) { ✓ }</span>
                 </button>
                 @if (g.enUso && g.gradoId) {
-                  <a class="btn btn-sm enlace-editar" [routerLink]="['/configuracion/estructura', g.gradoId]"
+                  <a class="btn btn-sm" [routerLink]="['/configuracion/estructura', g.gradoId]"
                      title="Cambiar aula, vacantes o turno de sus secciones">Editar secciones →</a>
                 }
               }

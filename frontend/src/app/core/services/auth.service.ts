@@ -28,6 +28,11 @@ export function rolesDelSistema(roles: readonly string[] | null | undefined): st
 const TOKEN_KEY = 'eduspace_token';
 const REFRESH_KEY = 'eduspace_refresh';
 const CAMBIAR_CLAVE_KEY = 'eduspace_cambiar_clave';
+/**
+ * Interruptor: con `false` nadie es obligado a cambiar la clave al entrar (no hay redirección a /cambiar-clave).
+ * La pantalla sigue existiendo y se puede volver a activar poniendo `true`.
+ */
+export const OBLIGAR_CAMBIO_CLAVE = false;
 const API = '/api/v1/auth';
 const FORM = new HttpHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' });
 
@@ -93,7 +98,7 @@ export class AuthService {
         switchMap(res =>
           this.http.get<{ debeCambiarClave: boolean }>(`${API}/estado-clave`).pipe(
             map(e => {
-              const final = { ...res, debe_cambiar_clave: !!e.debeCambiarClave };
+              const final = { ...res, debe_cambiar_clave: OBLIGAR_CAMBIO_CLAVE && !!e.debeCambiarClave };
               if (final.debe_cambiar_clave) this.guardarSesion(final);
               return final;
             }),
@@ -102,7 +107,10 @@ export class AuthService {
         )
       );
     }
-    return this.http.post<TokenResponse>(`${API}/login`, request).pipe(tap(res => this.guardarSesion(res)));
+    return this.http.post<TokenResponse>(`${API}/login`, request).pipe(
+      map(res => ({ ...res, debe_cambiar_clave: OBLIGAR_CAMBIO_CLAVE && !!res.debe_cambiar_clave })),
+      tap(res => this.guardarSesion(res))
+    );
   }
 
   cambiarClave(request: CambiarClaveRequest): Observable<void> {
@@ -275,7 +283,7 @@ export class AuthService {
     }
     this.tokenSignal.set(token);
     this.refreshSignal.set(refresh);
-    this.cambiarClaveSignal.set(sessionStorage.getItem(CAMBIAR_CLAVE_KEY) === 'true');
+    this.cambiarClaveSignal.set(OBLIGAR_CAMBIO_CLAVE && sessionStorage.getItem(CAMBIAR_CLAVE_KEY) === 'true');
     this.currentUserSignal.set(usuario);
   }
 

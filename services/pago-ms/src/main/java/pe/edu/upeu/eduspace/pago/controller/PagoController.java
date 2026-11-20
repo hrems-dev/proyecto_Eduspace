@@ -251,16 +251,23 @@ public class PagoController {
     @Operation(summary = "Reporte de morosidad agrupado por sección/grado")
     @Transactional(readOnly = true)
     public ResponseEntity<MorososResponse> morosos(@RequestParam(required = false) Long seccionId,
-                                                  @RequestParam(required = false) Long gradoId) {
+                                                  @RequestParam(required = false) Long gradoId,
+                                                  @RequestParam(required = false) Long anioId) {
         List<MatriculaLocal> matriculas = seccionId != null ?
             matriculaLocalRepository.findBySeccionIdAndEstado(seccionId, "MATRICULADO") :
             matriculaLocalRepository.findAll();
+        // Con anioId, solo los matriculados de ese año y sus cuotas de ese año (el resumen por periodo del Inicio).
+        if (anioId != null) {
+            matriculas = matriculas.stream().filter(m -> anioId.equals(m.getAnioId())).toList();
+        }
 
         BigDecimal deudaTotal = BigDecimal.ZERO;
         List<MorososResponse.DetalleMoroso> morosos = new ArrayList<>();
 
         for (MatriculaLocal m : matriculas) {
-            List<Cuota> vencidas = cuotaRepository.findDeudasVencidasByAlumnoId(m.getAlumnoId());
+            List<Cuota> vencidas = cuotaRepository.findDeudasVencidasByAlumnoId(m.getAlumnoId()).stream()
+                .filter(c -> anioId == null || anioId.equals(c.getAnioId()))
+                .toList();
             if (!vencidas.isEmpty()) {
                 BigDecimal saldoAlumno = vencidas.stream().map(Cuota::getSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);
                 deudaTotal = deudaTotal.add(saldoAlumno);

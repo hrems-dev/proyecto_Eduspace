@@ -13,7 +13,7 @@ MODO = os.environ.get('AUTH_MODE', 'keycloak')
 
 CLAVES = {  # usuarios de DEV (los mismos de tools/e2e/README.md y del realm de Keycloak)
     'admin': 'admin123', 'secretaria': 'secre123', 'cajero': 'cajero123',
-    'docente': 'Clave12345', 'apoderado': 'Clave12345', 'alumno': 'Clave12345',
+    'docente': 'docente123', 'apoderado': 'admin123', 'alumno': 'alumno123',
 }
 _cache = {}
 

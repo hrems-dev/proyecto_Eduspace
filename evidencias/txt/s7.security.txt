@@ -1,5 +1,5 @@
 # Seguridad: rutas protegidas y JWKS  [s7.security]
-# Fecha y hora: 2026-11-19 20:21:31   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
+# Fecha y hora: 2026-11-19 21:49:48   Usuario: hrems-dev@fedora   Proyecto: eduspacePRACTICA
 # Resultado: CORRECTO
 
 Peticiones SIN token por el Gateway (las rutas protegidas deben dar 401/403):

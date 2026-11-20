@@ -30,7 +30,7 @@
               <li [class]="'conflicto ' + c.gravedad">
                 <span class="conflicto-punto" aria-hidden="true"></span>
                 <span>{{ c.texto }}
-                  @if (c.ruta) { <a [routerLink]="c.ruta" class="enlace-corregir">Corregir →</a> }
+                  @if (c.ruta) { <a [routerLink]="c.ruta" class="enlace" style="margin-left: 8px">Corregir →</a> }
                 </span>
               </li>
             }
