@@ -115,8 +115,8 @@ describe('espacios de trabajo (hubs)', () => {
     expect(hubDe('/configuracion/estructura')?.hub.id).toBe('configuracion');
     expect(hubDe('/configuracion')?.pestana.etiqueta).toBe('Resumen');
     expect(hubDe('/configuracion/grados')?.pestana.etiqueta).toBe('Niveles y grados'); // gana la ruta más específica sobre «/configuracion»
-    expect(hubDe('/matriculas/campanias')?.hub.id).toBe('configuracion');
-    expect(hubDe('/planificacion/anios')?.hub.id).toBe('configuracion');
+    expect(hubDe('/matriculas/campanias')?.hub.id).toBe('apertura');
+    expect(hubDe('/planificacion/anios')?.hub.id).toBe('apertura');
     expect(hubDe('/planificacion/aulas')).toBeNull(); // el catálogo de aulas ahora se administra dentro de la estructura académica
     expect(hubDe('/planificacion/panel')?.hub.id).toBe('aulas');
     expect(hubDe('/inicio')).toBeNull();
@@ -168,7 +168,7 @@ describe('Matrícula y secretaría', () => {
     for (const t of tabs) expect(t.roles, t.ruta).toEqual(['ADMIN', 'SECRETARIA']);
     expect(hubDe('/matricula/asistente')?.pestana.etiqueta).toBe('Asistente de matrícula');
     expect(hubDe('/matriculas?nueva=1')?.hub.id).toBe('matricula');
-    expect(hubDe('/matriculas/campanias')?.hub.id).toBe('configuracion');
+    expect(hubDe('/matriculas/campanias')?.hub.id).toBe('apertura');
     for (const rol of ['ADMIN', 'SECRETARIA']) expect(itemsDe(rol).map(i => i.hub), rol).toContain('matricula');
     expect(itemsDe('DOCENTE').some(i => i.hub === 'matricula')).toBe(false);
   });
@@ -259,20 +259,16 @@ describe('Personal y Configuración (barra superior del personal)', () => {
       '/configuracion',
       '/configuracion/colegio',
       '/configuracion/grados',
+      '/configuracion/cursos',
       '/configuracion/estructura',
-      '/planificacion/anios',
-      '/planificacion/feriados',
       '/configuracion/areas',
-      '/matriculas/campanias',
-      '/pagos/conceptos',
-      '/pagos/tarifas',
-      '/pagos/descuentos'
+      '/configuracion/horarios'
     ]);
     // el resumen abre el espacio y no tiene grupo; el resto sí, y los grupos van seguidos (un grupo no se parte en dos)
     expect(tabs[0].grupo).toBeUndefined();
     const grupos = tabs.slice(1).map(p => p.grupo);
     expect(grupos.every(g => !!g)).toBe(true);
-    expect(grupos.filter((g, i) => g !== grupos[i - 1])).toEqual(['El colegio', 'Año escolar', 'Personal', 'Matrícula', 'Cobranza']);
+    expect(grupos.filter((g, i) => g !== grupos[i - 1])).toEqual(['El colegio', 'Personal']);
   });
 
   it('la barra horizontal del personal muestra Inicio, Personal y Configuración', () => {
@@ -313,11 +309,10 @@ describe('Personal y Configuración (barra superior del personal)', () => {
       '/configuracion',
       '/configuracion/colegio',
       '/configuracion/grados',
+      '/configuracion/cursos',
       '/configuracion/estructura',
-      '/planificacion/anios',
-      '/planificacion/feriados',
       '/configuracion/areas',
-      '/matriculas/campanias'
+      '/configuracion/horarios'
     ]);
   });
 
